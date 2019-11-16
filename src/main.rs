@@ -3,6 +3,7 @@
 
 use std::{
     array::LengthAtMost32,
+    time::{Duration, Instant},
 };
 
 use pbr::ProgressBar;
@@ -64,8 +65,9 @@ where
     // ----- Run ---------------------------------------------------
     let mut summary = Summary::new(args, num_tms as u64);
     let mut pb = ProgressBar::new(num_tms as u64);
-    pb.set_max_refresh_rate(Some(std::time::Duration::from_millis(10)));
+    pb.set_max_refresh_rate(Some(Duration::from_millis(10)));
 
+    let before = Instant::now();
     for (i, tm) in tms.enumerate() {
         let outcome = run_tm(&tm, args);
 
@@ -81,6 +83,7 @@ where
         println!();
     }
 
+    println!("  That took {:.2?}", before.elapsed());
 
     // ----- Print results ---------------------------------------------------
     println!();
