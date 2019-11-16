@@ -41,6 +41,12 @@ impl State {
             true => self.on_1,
         }
     }
+
+    pub fn actions(&self) -> impl Iterator<Item = Action> {
+        use std::iter;
+
+        iter::once(self.on_0).chain(iter::once(self.on_1))
+    }
 }
 
 impl fmt::Debug for State {
@@ -65,7 +71,7 @@ pub struct Action {
 }
 
 impl Action {
-    fn to_halt_state(&self) -> bool {
+    pub fn will_halt(&self) -> bool {
         self.next_state == HALT_STATE
     }
 }
@@ -75,8 +81,8 @@ impl fmt::Debug for Action {
         let letter = if self.movement == Move::Left { "l" } else { "r" };
         let write = if self.write.0 { "1" } else { "0" };
 
-        if self.to_halt_state() {
-            write!(f, "{}H", write)
+        if self.will_halt() {
+            write!(f, " {}H", write)
         } else {
             write!(f, "{}{}{}", write, letter, self.next_state)
         }
@@ -132,7 +138,7 @@ where
         // `all_actions` has the length (N * 2 + 1) * 2.
         let all_actions = all_state_ids.clone()
             .flat_map(|next_state| all_movements.iter().map(move |&m| (next_state, m)))
-            .chain(Some((255, Move::Left))) // add the halting state with arbitrary movement
+            .chain(Some((HALT_STATE, Move::Left))) // add the halting state with arbitrary movement
             .flat_map(|(next_state, movement)| {
                 all_writes.iter().map(move |&write| Action { next_state, write, movement })
             })
