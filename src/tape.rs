@@ -1,19 +1,33 @@
+//! Defines the tape on which TMs are operating.
+
 use std::{
     cmp::max,
     mem,
     ops::Range,
 };
-use crate::{CellId, CellValue};
 
 
-type TypeBucket = u64;
-const BITS_PER_BUCKET: usize = mem::size_of::<TypeBucket>() * 8;
 
-/// The infinite tape of a TM. The cells are binary and can thus hold the two
-/// values '0' and '1'. All cells are initialized to 0.
+
+
+/// The index of a cell. All TM start with `0` as the active cell. This type
+/// exists to use strong typing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CellId(pub i64);
+
+/// The binary value of a cell. This type exists to use strong typing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CellValue(pub bool);
+
+
+type BucketType = u64;
+const BITS_PER_BUCKET: usize = mem::size_of::<BucketType>() * 8;
+
+/// The infinite tape of a TM. The cells are binary and can thus hold the
+/// values '0' or '1'. All cells are initialized to 0.
 pub struct Tape {
     /// The bits stored on the tape. This functions as a bit vector.
-    data: Vec<TypeBucket>,
+    data: Vec<BucketType>,
 
     /// The initial cell of the TM (cell 0) is stored at bit `offset` of the
     /// `data` vector. This number is always positive, but we store a `i64`
@@ -28,6 +42,7 @@ pub struct Tape {
 }
 
 impl Tape {
+    /// Creates a new infinite tape.
     pub fn new() -> Self {
         Self {
             data: vec![0],
@@ -36,10 +51,14 @@ impl Tape {
         }
     }
 
+    /// Returns the range in which cells have already been written. Not all
+    /// cells are written within this range, but there are no cells outside
+    /// this range that have not been written to yet.
     pub fn written_range(&self) -> Range<CellId> {
         self.written_range.clone()
     }
 
+    /// Return the value of the given cell.
     pub fn get(&self, id: CellId) -> CellValue {
         // If a cell is requested outside the range that has ever be written
         // to, we know its a binary 0.
@@ -54,6 +73,7 @@ impl Tape {
         CellValue((self.data[bucket_idx] & (1 << bit_in_bucket)) != 0)
     }
 
+    /// Write a new value into the given cell.
     pub fn write(&mut self, id: CellId, value: CellValue) {
         let bit_idx = self.offset + id.0;
         let stored_bits = self.data.len() * BITS_PER_BUCKET;

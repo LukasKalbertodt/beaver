@@ -1,3 +1,5 @@
+//! Defines types to describe a TM.
+
 use std::{
     array::LengthAtMost32,
     convert::TryInto,
@@ -21,8 +23,10 @@ impl<const N: usize> fmt::Debug for Tm<{N}> {
     }
 }
 
+/// Special constant.
 pub const HALT_STATE: u8 = u8::max_value();
 
+/// A state of a TM.
 #[derive(Clone, Copy)]
 pub struct State {
     pub on_0: Action,
@@ -30,6 +34,7 @@ pub struct State {
 }
 
 impl State {
+    /// Returns the action for the given cell value.
     pub fn action_for(&self, value: CellValue) -> Action {
         match value.0 {
             false => self.on_0,
@@ -44,13 +49,18 @@ impl fmt::Debug for State {
     }
 }
 
+/// Everything that happens in one step of simulation.
 #[derive(Clone, Copy)]
 pub struct Action {
-    // As the busy beaver problem is almost basically impossible for N=6, `u8`
-    // able to refer to 256 states is more than enough. `255` is the halting
-    // state.
+    /// As the busy beaver problem is almost basically impossible for N=6, `u8`
+    /// able to refer to 256 states is more than enough. `255` is the halting
+    /// state.
     pub next_state: u8,
+
+    /// The value that is written to the tape.
     pub write: CellValue,
+
+    /// How the reading/writing head moves.
     pub movement: Move,
 }
 

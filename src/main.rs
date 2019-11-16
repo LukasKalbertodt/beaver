@@ -11,7 +11,7 @@ use structopt::StructOpt;
 
 use crate::{
     cli::Args,
-    tape::Tape,
+    tape::{CellId, CellValue, Tape},
     tm::{Move, State, Tm, gen_all_tms, HALT_STATE},
 };
 
@@ -19,20 +19,6 @@ use crate::{
 mod cli;
 mod tape;
 mod tm;
-
-
-
-
-
-/// The index of a cell. All TM start with `0` as the active cell.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CellId(i64);
-
-/// The binary value of a cell.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CellValue(bool);
-
-
 
 
 
@@ -58,24 +44,28 @@ fn main() {
     }
 }
 
+/// Runs the experiment for a given `N`.
 fn run<const N: usize>(args: &Args)
 where
     [State; N]: LengthAtMost32,
 {
+    // ----- Generate TMs ---------------------------------------------------
     println!("▸ Generating all possible TMs with {} states...", N);
     let tms = gen_all_tms::<{N}>();
     println!("  ... generated {} TMs", tms.len());
+
 
     println!("");
     println!("▸ Simulating all TMs...");
     println!("");
 
 
+    // ----- Run an analyze ---------------------------------------------------
     let mut high_score = 0;
     let mut num_winners = 0;
     let mut fewest_winner_steps = 0;
-    let mut num_stopped_after_max_steps = 0;
-    let mut num_stopped_after_max_cells = 0;
+    let mut num_aborted = 0;
+
     let mut pb = ProgressBar::new(tms.len() as u64);
     pb.set_max_refresh_rate(Some(std::time::Duration::from_millis(10)));
     for tm in &tms {
@@ -91,15 +81,12 @@ where
                     fewest_winner_steps = min(fewest_winner_steps, steps);
                 }
             }
-            Outcome::StoppedAfterMaxSteps => num_stopped_after_max_steps += 1,
-            Outcome::StoppedAfterMaxCells => num_stopped_after_max_cells += 1,
+            Outcome::StoppedAfterMaxSteps => num_aborted += 1,
         }
 
         pb.inc();
     }
 
-
-    let num_stopped = num_stopped_after_max_steps + num_stopped_after_max_cells;
 
     // ----- Print results ---------------------------------------------------
     println!();
@@ -108,20 +95,16 @@ where
     println!("- The high score (number of 1s after halting) is: {}", high_score);
     println!("  - {} TMs reached that high score", num_winners);
     println!("  - The quickest of which reached the high score in {} steps", fewest_winner_steps);
-    println!("- {} TMs halted but didn't get a high score", tms.len() - num_stopped);
+    println!("- {} TMs halted but didn't get a high score", tms.len() - num_aborted);
     println!(
-        "- {} were stopped after the maximum number of steps ({})",
-        num_stopped_after_max_steps,
+        "- {} were aborted after the maximum number of steps ({})",
+        num_aborted,
         args.max_steps,
-    );
-    println!(
-        "- {} were stopped after writing to the maximum number of cells ({})",
-        num_stopped_after_max_cells,
-        args.max_cells,
     );
 }
 
 
+/// The outcome of simulating a TM.
 #[derive(Debug, Clone, Copy)]
 enum Outcome {
     Halted {
@@ -129,9 +112,9 @@ enum Outcome {
         ones: u64,
     },
     StoppedAfterMaxSteps,
-    StoppedAfterMaxCells
 }
 
+/// Simulate a turing machine.
 fn run_tm<const N: usize>(tm: &Tm<{N}>, args: &Args) -> Outcome {
     let mut tape = Tape::new();
     let mut head = CellId(0);
