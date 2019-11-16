@@ -57,9 +57,8 @@ where
     let num_tms = tms.len();
 
     println!("");
-    Blue.bold().with(|| println!("▸ Simulating all {} TMs with {} states...", num_tms, N));
+    Blue.bold().with(|| println!("▸ Analyzing all {} TMs with {} states...", num_tms, N));
     println!("");
-
 
 
     // ----- Run ---------------------------------------------------
@@ -173,24 +172,54 @@ fn static_analysis<const N: usize>(tm: &Tm<{N}>) -> Option<Outcome> {
     }
 
 
-    // First we analyze whether we can even theoretically reach the halt state.
-    // We do that by performing a depth-first search over the TM's states.
+    // Here we analyze whether we can even theoretically reach the halt state.
+    // We do that by performing a depth-first search over the TM's states
+    // (which form a graph). We use one additional trick: we first check if we
+    // can reach a transition that can write a `1`. If that's not the case, we
+    // can ignore all `on_1` transitions, meaning that this check will more
+    // likely detect when a TM cannot halt.
+    //
     // TODO: these `Vec`s are not necessary, we could use arrays.
     let mut stack = vec![0];
     let mut visited = vec![false; N];
+
+    // Stays `true` until we encounter an action that actually writes a 1.
+    let mut only_0s = true;
+
     let mut reached_halt = false;
     'outer: while let Some(state_id) = stack.pop() {
         if visited[state_id] {
             continue;
         }
-
         visited[state_id] = true;
-        for action in tm.states[state_id].actions() {
-            if action.will_halt() {
-                reached_halt = true;
-                break 'outer;
-            }
-            stack.push(action.next_state as usize);
+
+        // Check if we could write a 1 from here.
+        let state = &tm.states[state_id];
+        if only_0s && state.on_0.write.0 {
+            only_0s = false;
+
+            // We have to reset the search here, because we ignored `on_1`
+            // transitions so far. But since we can encounter 1s now, we have
+            // to reconsider them again.
+            stack = vec![0];
+            visited = vec![false; N];
+        }
+
+        macro_rules! check_state {
+            ($action:expr) => {
+                if $action.will_halt() {
+                    reached_halt = true;
+                    break 'outer;
+                }
+                stack.push($action.next_state as usize);
+            };
+        }
+
+        // If we haven't had the chance to write a 1 yet, we can ignore the
+        // `on_1` transition.
+        check_state!(state.on_0);
+        if !only_0s {
+            check_state!(state.on_1);
         }
     }
 

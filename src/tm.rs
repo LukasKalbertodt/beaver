@@ -82,7 +82,7 @@ impl fmt::Debug for Action {
         let write = if self.write.0 { "1" } else { "0" };
 
         if self.will_halt() {
-            write!(f, " {}H", write)
+            write!(f, "{}_H", write)
         } else {
             write!(f, "{}{}{}", write, letter, self.next_state)
         }
