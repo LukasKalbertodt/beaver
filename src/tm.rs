@@ -78,7 +78,7 @@ impl fmt::Debug for Action {
         if self.to_halt_state() {
             write!(f, "{}H", write)
         } else {
-            write!(f, "{}{}{: >2}", write, letter, self.next_state)
+            write!(f, "{}{}{}", write, letter, self.next_state)
         }
     }
 }
@@ -91,76 +91,116 @@ pub enum Move {
 }
 
 
-/// Generates all combinations of TMs with `N` states.
+/// Iterator that generates all combinations of TMs with `N` states.
 ///
-/// The resulting vector has the length `(((N * 2 + 1) * 2)^2)^N`. For small N:
+/// The number of TMs is `(((N * 2 + 1) * 2)^2)^N`. For small N:
 /// - 1: 36
 /// - 2: 10_000
 /// - 3: 7_529_536
 /// - 4: 11_019_960_576
-pub fn gen_all_tms<const N: usize>() -> Vec<Tm<{N}>>
+pub struct AllTmCombinations<const N: usize> {
+    /// This lists all possible states. This is pregenerated in `new`.
+    all_states: Vec<State>,
+
+    ///
+    last_states: [State; N],
+
+    /// This is the current state of iteration. It's basically a N digit number
+    /// with base `all_states.len()`.
+    indices: [usize; N],
+
+    // The depth is also iteration state and basically determines which digits
+    // of `indices` is increased next.
+    depth: i64,
+
+    /// Just counts down how many elements are still remaining. This is only
+    /// for the `ExactSizeIterator` impl.
+    remaining: u64,
+}
+
+impl<const N: usize> AllTmCombinations<{N}>
 where
     [State; N]: LengthAtMost32,
- {
-    // We create vectors of all X, starting with movements and state ids.
-    let all_movements = [Move::Left, Move::Right];
-    let all_writes = [CellValue(false), CellValue(true)];
-    let all_state_ids = (0..N).map(|s| s as u8);
+    [usize; N]: LengthAtMost32,
+{
+    pub fn new() -> Self {
+        // We create vectors of all X, starting with movements and state ids.
+        let all_movements = [Move::Left, Move::Right];
+        let all_writes = [CellValue(false), CellValue(true)];
+        let all_state_ids = (0..N).map(|s| s as u8);
 
-    // `all_actions` has the length (N * 2 + 1) * 2.
-    let all_actions = all_state_ids.clone()
-        .flat_map(|next_state| all_movements.iter().map(move |&m| (next_state, m)))
-        .chain(Some((255, Move::Left))) // add the halting state with arbitrary movement
-        .flat_map(|(next_state, movement)| {
-            all_writes.iter().map(move |&write| Action { next_state, write, movement })
-        })
-        .collect::<Vec<_>>();
+        // `all_actions` has the length (N * 2 + 1) * 2.
+        let all_actions = all_state_ids.clone()
+            .flat_map(|next_state| all_movements.iter().map(move |&m| (next_state, m)))
+            .chain(Some((255, Move::Left))) // add the halting state with arbitrary movement
+            .flat_map(|(next_state, movement)| {
+                all_writes.iter().map(move |&write| Action { next_state, write, movement })
+            })
+            .collect::<Vec<_>>();
 
-    // `all_states` has the length ((N * 2 + 1) * 2)^2.
-    let all_states = all_actions.iter().flat_map(|&on_0| {
-        all_actions.iter().map(move |&on_1| State { on_0, on_1 })
-    }).collect::<Vec<_>>();
+        // `all_states` has the length ((N * 2 + 1) * 2)^2.
+        let all_states = all_actions.iter().flat_map(|&on_0| {
+            all_actions.iter().map(move |&on_1| State { on_0, on_1 })
+        }).collect::<Vec<_>>();
 
-    // The next step would ideally be done recursively with a helper function
-    // that starts at `N=1` and every other invocation is solved recursively.
-    // However, expressions in const generics are not yet implemented, so we
-    // can't do that.
 
-    // This is temporary storage for the states of a TM. Sadly, we can't create
-    // this array immediately (limitation in const generics). So we have to
-    // create a vector first and then convert it into an array.
-    let dummy_state = all_states[0];
-    let mut tmp_states: [_; N] = vec![dummy_state; N][..].try_into().unwrap();
+        // Sadly, we can't create this array immediately (limitation in const
+        // generics). So we have to create a vector first and then convert it
+        // into an array.
+        let dummy_state = all_states[0];
+        let last_states = vec![dummy_state; N][..].try_into().unwrap();
+        let indices = vec![0; N][..].try_into().unwrap();
 
-    // We iterate over all possible states N times, creating the cross product
-    // of all states. This array holds all iterators.
-    let mut iters = vec![all_states.iter(); N];
+        let total_tms = (all_states.len() as u64).pow(N as u32);
 
-    // The depth says at which iterator we are currently pulling.
-    let mut depth: i64 = 0;
-    let mut out = Vec::new();
-    while depth >= 0 {
-        match iters[depth as usize].next() {
-            // If the iterator is exhausted, we go a step back and reset the
-            // iterator at this depth.
-            None => {
-                iters[depth as usize] = all_states.iter();
-                depth -= 1;
-            }
+        Self {
+            all_states,
+            last_states,
+            indices,
+            depth: 0,
+            remaining: total_tms,
+        }
+    }
+}
 
-            // If not, we update the temporary storage and, if we are at max
-            // depth, push the current state.
-            Some(state) => {
-                tmp_states[depth as usize] = *state;
 
-                if depth == N as i64 - 1 {
-                    out.push(Tm { states: tmp_states });
-                } else {
-                    depth += 1;
+impl<const N: usize> Iterator for AllTmCombinations<{N}> {
+    type Item = Tm<{N}>;
+    fn next(&mut self) -> Option<Self::Item> {
+
+
+        while self.depth >= 0 {
+            let state_idx = self.indices[self.depth as usize];
+            self.indices[self.depth as usize] += 1;
+
+            match self.all_states.get(state_idx) {
+                None => {
+                    // We exhausted the current "digit" and have to track back.
+                    self.indices[self.depth as usize] = 0;
+                    self.depth -= 1;
+                }
+
+                Some(state) => {
+                    // If not, we update the temporary storage and, if we are
+                    // at max depth, return the current state.
+                    self.last_states[self.depth as usize] = *state;
+
+                    if self.depth == N as i64 - 1 {
+                        self.remaining -= 1;
+                        return Some(Tm { states: self.last_states });
+                    } else {
+                        self.depth += 1;
+                    }
                 }
             }
         }
+
+        None
     }
 
-    out
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.remaining as usize, Some(self.remaining as usize))
+    }
 }
+
+impl<const N: usize> ExactSizeIterator for AllTmCombinations<{N}> {}

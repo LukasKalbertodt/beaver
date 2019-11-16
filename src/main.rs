@@ -13,7 +13,7 @@ use term_painter::{ToStyle, Color::*};
 use crate::{
     cli::Args,
     tape::{CellId, CellValue, Tape},
-    tm::{Move, State, Tm, gen_all_tms, HALT_STATE},
+    tm::{AllTmCombinations, Move, State, Tm, HALT_STATE},
 };
 
 
@@ -49,16 +49,16 @@ fn main() {
 fn run<const N: usize>(args: &Args)
 where
     [State; N]: LengthAtMost32,
+    [usize; N]: LengthAtMost32,
 {
-    // ----- Generate TMs ---------------------------------------------------
-    Blue.bold().with(|| println!("▸ Generating all possible TMs with {} states...", N));
-    let tms = gen_all_tms::<{N}>();
-    println!("  ... generated {} TMs", tms.len());
-
+    // Iterator to iterate over all possible TMs.
+    let tms = <AllTmCombinations<{N}>>::new();
+    let num_tms = tms.len();
 
     println!("");
-    Blue.bold().with(|| println!("▸ Simulating all TMs..."));
+    Blue.bold().with(|| println!("▸ Simulating all {} TMs with {} states...", num_tms, N));
     println!("");
+
 
 
     // ----- Run an analyze ---------------------------------------------------
@@ -67,10 +67,11 @@ where
     let mut fewest_winner_steps = 0;
     let mut num_aborted = 0;
 
-    let mut pb = ProgressBar::new(tms.len() as u64);
+    let mut pb = ProgressBar::new(num_tms as u64);
     pb.set_max_refresh_rate(Some(std::time::Duration::from_millis(10)));
-    for (i, tm) in tms.iter().enumerate() {
-        let outcome = run_tm(tm, args);
+
+    for (i, tm) in tms.enumerate() {
+        let outcome = run_tm(&tm, args);
         match outcome {
             Outcome::Halted { steps, ones } => {
                 if ones > high_score {
@@ -107,7 +108,7 @@ where
     );
     println!(
         "- {} TMs halted but did not get a high score",
-        Yellow.bold().paint(tms.len() - num_aborted),
+        Yellow.bold().paint(num_tms - num_aborted),
     );
     println!(
         "- {} were aborted after the maximum number of steps ({})",
