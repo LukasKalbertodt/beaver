@@ -3,7 +3,6 @@
 
 use std::{
     array::LengthAtMost32,
-    cmp::min,
 };
 
 use pbr::ProgressBar;
@@ -12,12 +11,14 @@ use term_painter::{ToStyle, Color::*};
 
 use crate::{
     cli::Args,
+    summary::Summary,
     tape::{CellId, CellValue, Tape},
     tm::{AllTmCombinations, Move, State, Tm, HALT_STATE},
 };
 
 
 mod cli;
+mod summary;
 mod tape;
 mod tm;
 
@@ -61,38 +62,15 @@ where
 
 
 
-    // ----- Run an analyze ---------------------------------------------------
-    let mut high_score = 0;
-    let mut num_winners = 0;
-    let mut fewest_winner_steps = 0;
-    let mut num_halted = 0;
-    let mut num_aborted = 0;
-    let mut num_no_halt = 0;
-    let mut num_halt_unreachable = 0;
-
+    // ----- Run ---------------------------------------------------
+    let mut summary = Summary::new(args, num_tms as u64);
     let mut pb = ProgressBar::new(num_tms as u64);
     pb.set_max_refresh_rate(Some(std::time::Duration::from_millis(10)));
 
     for (i, tm) in tms.enumerate() {
         let outcome = run_tm(&tm, args);
-        // println!("{:?} => {:#?}", outcome, tm);
-        match outcome {
-            Outcome::Halted { steps, ones } => {
-                num_halted += 1;
-                if ones > high_score {
-                    high_score = ones;
-                    num_winners = 1;
-                    fewest_winner_steps = steps;
-                } else if ones == high_score {
-                    num_winners += 1;
-                    fewest_winner_steps = min(fewest_winner_steps, steps);
-                }
-            }
-            Outcome::AbortedAfterMaxSteps => num_aborted += 1,
-            Outcome::NoHaltState => num_no_halt += 1,
-            Outcome::HaltStateNotReachable => num_halt_unreachable += 1,
-        }
 
+        summary.handle_outcome(outcome);
         let at_once = if N >= 3 { 1000 } else { 1 };
         if !args.no_pb && i % at_once == 0 {
             pb.add(at_once as u64);
@@ -106,66 +84,32 @@ where
 
 
     // ----- Print results ---------------------------------------------------
-    let num_tms_f = num_tms as f64;
-    let halted_non_high_score = num_halted - num_winners;
-    let percent_halted_non_high_score = (halted_non_high_score as f64 / num_tms_f) * 100.0;
-    let percent_aborted = (num_aborted as f64 / num_tms_f) * 100.0;
-    let num_non_terminated = num_tms - num_halted;
-    let percent_non_terminated = (num_non_terminated as f64 / num_tms_f) * 100.0;
-    let percent_halt_unreachable = (num_halt_unreachable as f64 / num_tms_f) * 100.0;
-    let percent_no_halt = (num_no_halt as f64 / num_tms_f) * 100.0;
-
     println!();
-    Blue.bold().with(|| println!("▸ Results:"));
-    println!(
-        "- The high score (number of 1s after halting) is: {}",
-        Green.bold().paint(high_score),
-    );
-    println!("  - {} TMs reached that high score", Green.bold().paint(num_winners));
-    println!(
-        "  - The quickest of which reached the high score in {} steps",
-        Green.bold().paint(fewest_winner_steps),
-    );
-    println!(
-        "- {} ({}) TMs halted but did not get a high score",
-        Yellow.bold().paint(halted_non_high_score),
-        Yellow.bold().paint(format!("{:.1}%", percent_halted_non_high_score)),
-    );
-    println!(
-        "- {} ({}) did not terminate:",
-        Magenta.bold().paint(num_non_terminated),
-        Magenta.bold().paint(format!("{:.1}%", percent_non_terminated)),
-    );
-    println!(
-        "  - {} ({}) did not contain a transition to the halt state",
-        Magenta.bold().paint(num_no_halt),
-        Magenta.bold().paint(format!("{:.1}%", percent_no_halt)),
-    );
-    println!(
-        "  - {} ({}) statically could not reach the halt state",
-        Magenta.bold().paint(num_halt_unreachable),
-        Magenta.bold().paint(format!("{:.1}%", percent_halt_unreachable)),
-    );
-    println!(
-        "  - {} ({}) were aborted after the maximum number of steps ({})",
-        Red.bold().paint(num_aborted),
-        Red.bold().paint(format!("{:.1}%", percent_aborted)),
-        args.max_steps,
-    );
-
+    summary.print_report();
 }
 
 
 /// The outcome of simulating a TM.
 #[derive(Debug, Clone, Copy)]
-enum Outcome {
+pub enum Outcome {
+    // ----- Outcomes from actually running the TM ---------------------------
+    /// The TM ran and halted.
     Halted {
         steps: u64,
         ones: u64,
     },
+
+    /// The TM ran but was aborted after the maximum number of steps.
     AbortedAfterMaxSteps,
 
-    /// The TM does not even have a transition to the halt state.
+
+    // ----- Outcomes from static analysis -----------------------------------
+    /// The start state of the TM for the cell value 0 has the halt state as
+    /// next state. This means the TM terminates in one step. It might write a
+    /// single one, but we just ignore that information.
+    ImmediateHalt,
+
+    /// The TM does not even have a transition to the halt state at all.
     NoHaltState,
 
     /// If the turing machine has a state graph where the halt state cannot be
