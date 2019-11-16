@@ -14,7 +14,7 @@ use crate::{
     cli::Args,
     summary::Summary,
     tape::{CellId, CellValue, Tape},
-    tm::{AllTmCombinations, Move, State, Tm, HALT_STATE},
+    tm::{AllTmCombinations, Move, NextState, State, Tm},
 };
 
 
@@ -51,7 +51,7 @@ fn main() {
 fn run<const N: usize>(args: &Args)
 where
     [State; N]: LengthAtMost32,
-    [usize; N]: LengthAtMost32,
+    [u16; N]: LengthAtMost32,
 {
     // Iterator to iterate over all possible TMs.
     let tms = <AllTmCombinations<{N}>>::new();
@@ -70,8 +70,8 @@ where
     let before = Instant::now();
     for (i, tm) in tms.enumerate() {
         let outcome = run_tm(&tm, args);
-
         summary.handle_outcome(outcome);
+
         let at_once = match N {
             1 | 2 => 1,
             3 => 1_000,
@@ -144,14 +144,13 @@ fn run_tm<const N: usize>(tm: &Tm<{N}>, args: &Args) -> Outcome {
 
         let value = tape.get(head);
         let action = tm.states[current_state as usize].action_for(value);
-        tape.write(head, action.write);
+        tape.write(head, action.write_value());
 
-        if action.next_state == HALT_STATE {
-            break;
-        }
-
-        current_state = action.next_state;
-        match action.movement {
+        current_state = match action.next_state() {
+            NextState::HaltState => break,
+            NextState::State(v) => v,
+        };
+        match action.movement() {
             Move::Left => head.0 -= 1,
             Move::Right => head.0 += 1,
         }
@@ -203,7 +202,7 @@ fn static_analysis<const N: usize>(tm: &Tm<{N}>) -> Option<Outcome> {
 
         // Check if we could write a 1 from here.
         let state = &tm.states[state_id];
-        if only_0s && state.on_0.write.0 {
+        if only_0s && state.on_0.write_value().0 {
             only_0s = false;
 
             // We have to reset the search here, because we ignored `on_1`
@@ -215,11 +214,15 @@ fn static_analysis<const N: usize>(tm: &Tm<{N}>) -> Option<Outcome> {
 
         macro_rules! check_state {
             ($action:expr) => {
-                if $action.will_halt() {
-                    reached_halt = true;
-                    break 'outer;
+                match $action.next_state() {
+                    NextState::HaltState => {
+                        reached_halt = true;
+                        break 'outer;
+                    }
+                    NextState::State(v) => {
+                        stack.push(v as usize);
+                    }
                 }
-                stack.push($action.next_state as usize);
             };
         }
 
