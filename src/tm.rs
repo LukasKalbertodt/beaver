@@ -239,7 +239,12 @@ impl<const N: usize> Iterator for AllTmCombinations<{N}> {
     type Item = Tm<{N}>;
     fn next(&mut self) -> Option<Self::Item> {
         while self.depth >= 0 {
-            let idx = &mut self.indices[self.depth as usize];
+            // This `unsafe` is fine: `self.indices` always has the length `N`.
+            // And `self.depth` is *only* increased in this method below. And
+            // that clearly only happens if `depth` is not `N - 1`. And since
+            // we increment `depth` only 1 at a time, this means, `depth`
+            // becomes at most `N - 1`, making this index safe.
+            let idx = unsafe { self.indices.get_unchecked_mut(self.depth as usize) };
             let state_idx = *idx;
             *idx += 1;
 
@@ -253,7 +258,12 @@ impl<const N: usize> Iterator for AllTmCombinations<{N}> {
                 Some(state) => {
                     // If not, we update the temporary storage and, if we are
                     // at max depth, return the current state.
-                    self.last_states[self.depth as usize] = *state;
+
+                    // This unsafe call is fine. See the `get_unchecked_mut`
+                    // above for more information. The same logic applies here.
+                    unsafe {
+                        *self.last_states.get_unchecked_mut(self.depth as usize) = *state;
+                    }
 
                     if self.depth == N as i8 - 1 {
                         self.remaining -= 1;
