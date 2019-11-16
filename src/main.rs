@@ -13,13 +13,15 @@ use structopt::StructOpt;
 use term_painter::{ToStyle, Color::*};
 
 use crate::{
+    analyze::Analyzer,
     cli::Args,
     summary::Summary,
-    tape::{CellId, CellValue, Tape},
-    tm::{AllTmCombinations, Move, NextState, State, Tm},
+    tape::CellValue,
+    tm::{AllTmCombinations, State, Tm},
 };
 
 
+mod analyze;
 mod cli;
 mod summary;
 mod tape;
@@ -54,6 +56,7 @@ fn run<const N: usize>(args: &Args)
 where
     [State; N]: LengthAtMost32,
     [u16; N]: LengthAtMost32,
+    [bool; N]: LengthAtMost32,
 {
     // Iterator to iterate over all possible TMs.
     let mut tms = <AllTmCombinations<{N}>>::new();
@@ -87,13 +90,14 @@ where
         thread::spawn(move || {
             // Cache this vector here.
             let mut outcomes = Vec::new();
+            let mut analyzer = Analyzer::new(args);
 
             for job in new_jobs.iter() {
                 outcomes.clear();
 
                 // Analyze each TM in this batch
                 for tm in &job {
-                    let outcome = run_tm(tm, &args);
+                    let outcome = analyzer.analyze(tm);
                     outcomes.push(outcome);
                 }
 
@@ -166,122 +170,4 @@ pub enum Outcome {
     /// If the turing machine has a state graph where the halt state cannot be
     /// reached from the start state.
     HaltStateNotReachable,
-}
-
-/// Simulate a turing machine.
-fn run_tm<const N: usize>(tm: &Tm<{N}>, args: &Args) -> Outcome {
-    // Before even running the TM, we analyze it to detect some non-terminating
-    // TMs early.
-    match static_analysis(tm) {
-        Some(outcome) => return outcome,
-        None => {}
-    }
-
-
-    let mut tape = Tape::new();
-    let mut head = CellId(0);
-    let mut current_state: u8 = 0;
-
-    let mut steps = 0;
-    loop {
-        steps += 1;
-
-        let value = tape.get(head);
-        let action = tm.states[current_state as usize].action_for(value);
-        tape.write(head, action.write_value());
-
-        current_state = match action.next_state() {
-            NextState::HaltState => break,
-            NextState::State(v) => v,
-        };
-        match action.movement() {
-            Move::Left => head.0 -= 1,
-            Move::Right => head.0 += 1,
-        }
-
-        if steps == args.max_steps {
-            return Outcome::AbortedAfterMaxSteps;
-        }
-    }
-
-
-    let r = tape.written_range();
-    let ones = (r.start.0..r.end.0).filter(|&id| tape.get(CellId(id)).0).count() as u64;
-
-    Outcome::Halted { steps, ones }
-}
-
-fn static_analysis<const N: usize>(tm: &Tm<{N}>) -> Option<Outcome> {
-    // Is the start 0 action transitioning to the halt state?
-    if tm.states[0].on_0.will_halt() {
-        return Some(Outcome::ImmediateHalt);
-    }
-
-    // Has the TM a transition to the halt state at all?
-    if !tm.states.iter().flat_map(|s| s.actions()).any(|a| a.will_halt()) {
-        return Some(Outcome::NoHaltState);
-    }
-
-
-    // Here we analyze whether we can even theoretically reach the halt state.
-    // We do that by performing a depth-first search over the TM's states
-    // (which form a graph). We use one additional trick: we first check if we
-    // can reach a transition that can write a `1`. If that's not the case, we
-    // can ignore all `on_1` transitions, meaning that this check will more
-    // likely detect when a TM cannot halt.
-    //
-    // TODO: these `Vec`s are not necessary, we could use arrays.
-    let mut stack = vec![0];
-    let mut visited = vec![false; N];
-
-    // Stays `true` until we encounter an action that actually writes a 1.
-    let mut only_0s = true;
-
-    let mut reached_halt = false;
-    'outer: while let Some(state_id) = stack.pop() {
-        if visited[state_id] {
-            continue;
-        }
-        visited[state_id] = true;
-
-        // Check if we could write a 1 from here.
-        let state = &tm.states[state_id];
-        if only_0s && state.on_0.write_value().0 {
-            only_0s = false;
-
-            // We have to reset the search here, because we ignored `on_1`
-            // transitions so far. But since we can encounter 1s now, we have
-            // to reconsider them again.
-            stack = vec![0];
-            visited = vec![false; N];
-        }
-
-        macro_rules! check_state {
-            ($action:expr) => {
-                match $action.next_state() {
-                    NextState::HaltState => {
-                        reached_halt = true;
-                        break 'outer;
-                    }
-                    NextState::State(v) => {
-                        stack.push(v as usize);
-                    }
-                }
-            };
-        }
-
-        // If we haven't had the chance to write a 1 yet, we can ignore the
-        // `on_1` transition.
-        check_state!(state.on_0);
-        if !only_0s {
-            check_state!(state.on_1);
-        }
-    }
-
-    if !reached_halt {
-        return Some(Outcome::HaltStateNotReachable);
-    }
-
-
-    None
 }
