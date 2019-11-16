@@ -8,6 +8,7 @@ use std::{
 
 use pbr::ProgressBar;
 use structopt::StructOpt;
+use term_painter::{ToStyle, Color::*};
 
 use crate::{
     cli::Args,
@@ -50,13 +51,13 @@ where
     [State; N]: LengthAtMost32,
 {
     // ----- Generate TMs ---------------------------------------------------
-    println!("▸ Generating all possible TMs with {} states...", N);
+    Blue.bold().with(|| println!("▸ Generating all possible TMs with {} states...", N));
     let tms = gen_all_tms::<{N}>();
     println!("  ... generated {} TMs", tms.len());
 
 
     println!("");
-    println!("▸ Simulating all TMs...");
+    Blue.bold().with(|| println!("▸ Simulating all TMs..."));
     println!("");
 
 
@@ -68,7 +69,7 @@ where
 
     let mut pb = ProgressBar::new(tms.len() as u64);
     pb.set_max_refresh_rate(Some(std::time::Duration::from_millis(10)));
-    for tm in &tms {
+    for (i, tm) in tms.iter().enumerate() {
         let outcome = run_tm(tm, args);
         match outcome {
             Outcome::Halted { steps, ones } => {
@@ -84,21 +85,33 @@ where
             Outcome::StoppedAfterMaxSteps => num_aborted += 1,
         }
 
-        pb.inc();
+        let at_once = if N >= 3 { 1000 } else { 1 };
+        if i % at_once == 0 {
+            pb.add(at_once as u64);
+        }
     }
 
 
     // ----- Print results ---------------------------------------------------
     println!();
     println!();
-    println!("▸ Results:");
-    println!("- The high score (number of 1s after halting) is: {}", high_score);
-    println!("  - {} TMs reached that high score", num_winners);
-    println!("  - The quickest of which reached the high score in {} steps", fewest_winner_steps);
-    println!("- {} TMs halted but didn't get a high score", tms.len() - num_aborted);
+    Blue.bold().with(|| println!("▸ Results:"));
+    println!(
+        "- The high score (number of 1s after halting) is: {}",
+        Green.bold().paint(high_score),
+    );
+    println!("  - {} TMs reached that high score", Green.bold().paint(num_winners));
+    println!(
+        "  - The quickest of which reached the high score in {} steps",
+        Green.bold().paint(fewest_winner_steps),
+    );
+    println!(
+        "- {} TMs halted but did not get a high score",
+        Yellow.bold().paint(tms.len() - num_aborted),
+    );
     println!(
         "- {} were aborted after the maximum number of steps ({})",
-        num_aborted,
+        Red.bold().paint(num_aborted),
         args.max_steps,
     );
 }
