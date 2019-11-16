@@ -105,19 +105,23 @@ pub enum Move {
 /// - 3: 7_529_536
 /// - 4: 11_019_960_576
 pub struct AllTmCombinations<const N: usize> {
-    /// This lists all possible states. This is pregenerated in `new`.
-    all_states: Vec<State>,
+    // The depth is iteration state and basically determines which digits of
+    // `indices` is increased next. An `i8` is sufficient as this is bounded by
+    // `N` (which will never be as high as 127).
+    depth: i8,
 
-    ///
-    last_states: [State; N],
+    /// This lists all possible states. This is pregenerated in `new`.
+    all_states: Box<[State]>,
 
     /// This is the current state of iteration. It's basically a N digit number
-    /// with base `all_states.len()`.
-    indices: [usize; N],
+    /// with base `all_states.len()`. We use `u16` to have dense memory:
+    /// `all_states.len()` luckily doesn't grow that fast. Even for N=20 it is
+    /// way below `u16::max_value`.
+    indices: [u16; N],
 
-    // The depth is also iteration state and basically determines which digits
-    // of `indices` is increased next.
-    depth: i64,
+    /// The states that were yielded as part of a `Tm` the last time `next`
+    /// was called.
+    last_states: [State; N],
 
     /// Just counts down how many elements are still remaining. This is only
     /// for the `ExactSizeIterator` impl.
@@ -127,7 +131,7 @@ pub struct AllTmCombinations<const N: usize> {
 impl<const N: usize> AllTmCombinations<{N}>
 where
     [State; N]: LengthAtMost32,
-    [usize; N]: LengthAtMost32,
+    [u16; N]: LengthAtMost32,
 {
     pub fn new() -> Self {
         // We create vectors of all X, starting with movements and state ids.
@@ -160,7 +164,7 @@ where
         let total_tms = (all_states.len() as u64).pow(N as u32);
 
         Self {
-            all_states,
+            all_states: all_states.into_boxed_slice(),
             last_states,
             indices,
             depth: 0,
@@ -173,16 +177,15 @@ where
 impl<const N: usize> Iterator for AllTmCombinations<{N}> {
     type Item = Tm<{N}>;
     fn next(&mut self) -> Option<Self::Item> {
-
-
         while self.depth >= 0 {
-            let state_idx = self.indices[self.depth as usize];
-            self.indices[self.depth as usize] += 1;
+            let idx = &mut self.indices[self.depth as usize];
+            let state_idx = *idx;
+            *idx += 1;
 
-            match self.all_states.get(state_idx) {
+            match self.all_states.get(state_idx as usize) {
                 None => {
                     // We exhausted the current "digit" and have to track back.
-                    self.indices[self.depth as usize] = 0;
+                    *idx = 0;
                     self.depth -= 1;
                 }
 
@@ -191,7 +194,7 @@ impl<const N: usize> Iterator for AllTmCombinations<{N}> {
                     // at max depth, return the current state.
                     self.last_states[self.depth as usize] = *state;
 
-                    if self.depth == N as i64 - 1 {
+                    if self.depth == N as i8 - 1 {
                         self.remaining -= 1;
                         return Some(Tm { states: self.last_states });
                     } else {
