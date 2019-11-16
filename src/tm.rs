@@ -4,7 +4,7 @@ use std::{
     fmt,
 };
 
-use crate::{CellId, CellValue};
+use crate::CellValue;
 
 
 /// A N-state turing machine operating on a binary tape.
@@ -20,6 +20,8 @@ impl<const N: usize> fmt::Debug for Tm<{N}> {
             .finish()
     }
 }
+
+pub const HALT_STATE: u8 = u8::max_value();
 
 #[derive(Clone, Copy)]
 pub struct State {
@@ -54,7 +56,7 @@ pub struct Action {
 
 impl Action {
     fn to_halt_state(&self) -> bool {
-        self.next_state == u8::max_value()
+        self.next_state == HALT_STATE
     }
 }
 
