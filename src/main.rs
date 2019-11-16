@@ -87,12 +87,15 @@ where
         }
 
         let at_once = if N >= 3 { 1000 } else { 1 };
-        if i % at_once == 0 {
+        if !args.no_pb && i % at_once == 0 {
             pb.add(at_once as u64);
         }
     }
 
-    pb.finish();
+    if !args.no_pb {
+        pb.finish();
+        println!();
+    }
 
 
     // ----- Print results ---------------------------------------------------
@@ -101,7 +104,6 @@ where
     let percent_halted_non_high_score = (halted_non_high_score as f64 / num_tms_f) * 100.0;
     let percent_aborted = (num_aborted as f64 / num_tms_f) * 100.0;
 
-    println!();
     println!();
     Blue.bold().with(|| println!("▸ Results:"));
     println!(

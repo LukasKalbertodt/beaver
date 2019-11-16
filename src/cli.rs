@@ -13,4 +13,8 @@ pub struct Args {
     /// Number of steps after which TMs are stopped.
     #[structopt(long, default_value = "200")]
     pub max_steps: u64,
+
+    /// If specified, the progress bar is not shown.
+    #[structopt(long)]
+    pub no_pb: bool,
 }
