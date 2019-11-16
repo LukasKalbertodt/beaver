@@ -3,6 +3,8 @@
 
 use std::{
     array::LengthAtMost32,
+    sync::{Arc, Mutex},
+    thread,
     time::{Duration, Instant},
 };
 
@@ -54,7 +56,7 @@ where
     [u16; N]: LengthAtMost32,
 {
     // Iterator to iterate over all possible TMs.
-    let tms = <AllTmCombinations<{N}>>::new();
+    let mut tms = <AllTmCombinations<{N}>>::new();
     let num_tms = tms.len();
 
     println!("");
@@ -63,36 +65,78 @@ where
 
 
     // ----- Run ---------------------------------------------------
-    let mut summary = Summary::new(args, num_tms as u64);
+    let summary = Summary::new(args, num_tms as u64);
+    let summary = Arc::new(Mutex::new(summary));
     let mut pb = ProgressBar::new(num_tms as u64);
     pb.set_max_refresh_rate(Some(Duration::from_millis(10)));
+    let pb = Arc::new(Mutex::new(pb));
 
     let before = Instant::now();
-    for (i, tm) in tms.enumerate() {
-        let outcome = run_tm(&tm, args);
-        summary.handle_outcome(outcome);
 
-        let at_once = match N {
-            1 | 2 => 1,
-            3 => 1_000,
-            4 => 100_000,
-            _ => unreachable!(),
-        };
-        if !args.no_pb && i % at_once == 0 {
-            pb.add(at_once as u64);
-        }
+    // Create a channel to pass pass the work to the workers. We bound it to
+    // three to have always have some work ready, but to not use too much
+    // memory.
+    let (s, r) = crossbeam_channel::bounded::<Vec<Tm<{N}>>>(3);
+
+    // Create the worker threads
+    let join_handles = (0..num_cpus::get()).map(|_| {
+        let new_jobs = r.clone();
+        let summary = summary.clone();
+        let pb = pb.clone();
+        let args = args.clone();
+        thread::spawn(move || {
+            // Cache this vector here.
+            let mut outcomes = Vec::new();
+
+            for job in new_jobs.iter() {
+                outcomes.clear();
+
+                // Analyze each TM in this batch
+                for tm in &job {
+                    let outcome = run_tm(tm, &args);
+                    outcomes.push(outcome);
+                }
+
+                // Handle the outcomes
+                let mut summary = summary.lock().expect("poisened lock");
+                for outcome in &outcomes {
+                    summary.handle_outcome(*outcome);
+                }
+
+                // Advance progress bar
+                pb.lock().expect("poisened lock").add(job.len() as u64);
+            }
+        })
+    }).collect::<Vec<_>>();
+
+    let chunk_size = match N {
+        1 => 1,
+        2 => 100,
+        3 => 10_000,
+        _ => 100_000,
+    };
+    while tms.len() > 0 {
+        let job = tms.by_ref().take(chunk_size).collect::<Vec<_>>();
+        s.send(job).expect("channel unexpectedly disconnected");
+    }
+
+    // Join all threads
+    drop(s);
+    for handle in join_handles {
+        handle.join().expect("panic in worker thread");
     }
 
     if !args.no_pb {
-        pb.finish();
+        pb.lock().unwrap().finish();
         println!();
     }
 
-    println!("  That took {:.2?}", before.elapsed());
+    println!();
+    println!("  (That took {:.2?})", before.elapsed());
 
     // ----- Print results ---------------------------------------------------
     println!();
-    summary.print_report();
+    summary.lock().unwrap().print_report();
 }
 
 
