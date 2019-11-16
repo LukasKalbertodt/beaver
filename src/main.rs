@@ -92,8 +92,15 @@ where
         }
     }
 
+    pb.finish();
+
 
     // ----- Print results ---------------------------------------------------
+    let num_tms_f = num_tms as f64;
+    let halted_non_high_score = num_tms - num_aborted;
+    let percent_halted_non_high_score = (halted_non_high_score as f64 / num_tms_f) * 100.0;
+    let percent_aborted = (num_aborted as f64 / num_tms_f) * 100.0;
+
     println!();
     println!();
     Blue.bold().with(|| println!("▸ Results:"));
@@ -107,12 +114,14 @@ where
         Green.bold().paint(fewest_winner_steps),
     );
     println!(
-        "- {} TMs halted but did not get a high score",
-        Yellow.bold().paint(num_tms - num_aborted),
+        "- {} ({}) TMs halted but did not get a high score",
+        Yellow.bold().paint(halted_non_high_score),
+        Yellow.bold().paint(format!("{:.1}%", percent_halted_non_high_score)),
     );
     println!(
-        "- {} were aborted after the maximum number of steps ({})",
+        "- {} ({}) were aborted after the maximum number of steps ({})",
         Red.bold().paint(num_aborted),
+        Red.bold().paint(format!("{:.1}", percent_aborted)),
         args.max_steps,
     );
 }
