@@ -45,15 +45,29 @@ impl fmt::Debug for State {
 #[derive(Clone, Copy)]
 pub struct Action {
     // As the busy beaver problem is almost basically impossible for N=6, `u8`
-    // able to refer to 256 states is more than enough.
+    // able to refer to 256 states is more than enough. `255` is the halting
+    // state.
     pub next_state: u8,
+    pub write: CellValue,
     pub movement: Move,
+}
+
+impl Action {
+    fn to_halt_state(&self) -> bool {
+        self.next_state == u8::max_value()
+    }
 }
 
 impl fmt::Debug for Action {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let letter = if self.movement == Move::Left { "l" } else { "r" };
-        write!(f, "{: >2}{}", self.next_state, letter)
+        let write = if self.write.0 { "1" } else { "0" };
+
+        if self.to_halt_state() {
+            write!(f, "{}H", write)
+        } else {
+            write!(f, "{}{}{: >2}", write, letter, self.next_state)
+        }
     }
 }
 
@@ -67,25 +81,30 @@ pub enum Move {
 
 /// Generates all combinations of TMs with `N` states.
 ///
-/// The resulting vector has the length `((2 * N)^2)^N`. For small N:
-/// - 1: 4
-/// - 2: 256
-/// - 3: 46_656
-/// - 4: 16_777_216
+/// The resulting vector has the length `(((N * 2 + 1) * 2)^2)^N`. For small N:
+/// - 1: 36
+/// - 2: 10_000
+/// - 3: 7_529_536
+/// - 4: 11_019_960_576
 pub fn gen_all_tms<const N: usize>() -> Vec<Tm<{N}>>
 where
     [State; N]: LengthAtMost32,
  {
     // We create vectors of all X, starting with movements and state ids.
     let all_movements = [Move::Left, Move::Right];
+    let all_writes = [CellValue(false), CellValue(true)];
     let all_state_ids = (0..N).map(|s| s as u8);
 
-    // `all_actions` has the length 2 * N.
-    let all_actions = all_state_ids.clone().flat_map(|next_state| {
-        all_movements.iter().map(move |&movement| Action { next_state, movement })
-    }).collect::<Vec<_>>();
+    // `all_actions` has the length (N * 2 + 1) * 2.
+    let all_actions = all_state_ids.clone()
+        .flat_map(|next_state| all_movements.iter().map(move |&m| (next_state, m)))
+        .chain(Some((255, Move::Left))) // add the halting state with arbitrary movement
+        .flat_map(|(next_state, movement)| {
+            all_writes.iter().map(move |&write| Action { next_state, write, movement })
+        })
+        .collect::<Vec<_>>();
 
-    // `all_states` has the length (2 * N)^2.
+    // `all_states` has the length ((N * 2 + 1) * 2)^2.
     let all_states = all_actions.iter().flat_map(|&on_0| {
         all_actions.iter().map(move |&on_1| State { on_0, on_1 })
     }).collect::<Vec<_>>();
