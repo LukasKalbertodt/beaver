@@ -72,7 +72,12 @@ where
         let outcome = run_tm(&tm, args);
 
         summary.handle_outcome(outcome);
-        let at_once = if N >= 3 { 1000 } else { 1 };
+        let at_once = match N {
+            1 | 2 => 1,
+            3 => 1_000,
+            4 => 100_000,
+            _ => unreachable!(),
+        };
         if !args.no_pb && i % at_once == 0 {
             pb.add(at_once as u64);
         }
