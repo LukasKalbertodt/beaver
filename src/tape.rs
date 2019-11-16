@@ -27,7 +27,7 @@ const BITS_PER_BUCKET: usize = mem::size_of::<BucketType>() * 8;
 /// values '0' or '1'. All cells are initialized to 0.
 pub struct Tape {
     /// The bits stored on the tape. This functions as a bit vector.
-    data: Vec<BucketType>,
+    data: Box<[BucketType]>,
 
     /// The initial cell of the TM (cell 0) is stored at bit `offset` of the
     /// `data` vector. This number is always positive, but we store a `i64`
@@ -45,10 +45,17 @@ impl Tape {
     /// Creates a new infinite tape.
     pub fn new() -> Self {
         Self {
-            data: vec![0],
+            data: vec![0].into_boxed_slice(),
             offset: 32,
             written_range: CellId(0)..CellId(0),
         }
+    }
+
+    /// Clears the tape (sets all cells to 0) without deallocating memory.
+    pub fn clear(&mut self) {
+        self.data.iter_mut().for_each(|b| *b = 0);
+        self.offset = (self.data.len() * BITS_PER_BUCKET) as i64 / 2;
+        self.written_range = CellId(0)..CellId(0);
     }
 
     /// Returns the range in which cells have already been written. Not all
@@ -93,7 +100,7 @@ impl Tape {
             // Add 1 to compensate for rounding down of integer division.
             let grow_by_buckets = (grow_by_bits / BITS_PER_BUCKET) + 1;
 
-            let mut new_data = vec![0; self.data.len() + grow_by_buckets];
+            let mut new_data = vec![0; self.data.len() + grow_by_buckets].into_boxed_slice();
 
             if bit_idx < 0 {
                 // We grew left

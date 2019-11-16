@@ -21,6 +21,9 @@ pub struct Analyzer<const N: usize> {
     /// "Visited" flag for each state, indexed by state-ids. Used by
     /// `check_halt_reachable`.
     dfs_visited: [bool; N],
+
+    /// The actual TM tape used by `run_tm`.
+    tape: Tape,
 }
 
 macro_rules! try_check {
@@ -33,6 +36,10 @@ macro_rules! try_check {
 }
 
 impl<const N: usize> Analyzer<{N}> {
+    /// Creates a new analyzer instance. You can use this instance to analyze
+    /// different TMs. You can reuse this as often as you like. All values
+    /// stored inside of this either don't change or are cleared for each new
+    /// TM.
     pub fn new(args: Args) -> Self
     where
         [bool; N]: LengthAtMost32,
@@ -41,9 +48,11 @@ impl<const N: usize> Analyzer<{N}> {
             args,
             dfs_stack: Vec::new(),
             dfs_visited: vec![false; N][..].try_into().unwrap(),
+            tape: Tape::new(),
         }
     }
 
+    /// Main entry point: analyze the given TM.
     pub fn analyze(&mut self, tm: &Tm<{N}>) -> Outcome {
         // Before even running the TM (dynamic analysis), we analyze it
         // statically to categorize certain TMs early.
@@ -84,6 +93,7 @@ impl<const N: usize> Analyzer<{N}> {
     /// can reach a transition that can write a `1`. If that's not the case, we
     /// can ignore all `on_1` transitions, meaning that this check will more
     /// likely detect when a TM cannot halt.
+    #[inline(never)]
     pub fn check_halt_reachable(&mut self, tm: &Tm<{N}>) -> Option<Outcome> {
         self.dfs_stack.clear();
         self.dfs_stack.push(0);
@@ -142,8 +152,10 @@ impl<const N: usize> Analyzer<{N}> {
         None
     }
 
+    /// Actually run the TM.
+    #[inline(never)]
     pub fn run_tm(&mut self, tm: &Tm<{N}>) -> Outcome {
-        let mut tape = Tape::new();
+        self.tape.clear();
         let mut head = CellId(0);
         let mut current_state: u8 = 0;
 
@@ -151,9 +163,9 @@ impl<const N: usize> Analyzer<{N}> {
         loop {
             steps += 1;
 
-            let value = tape.get(head);
+            let value = self.tape.get(head);
             let action = tm.states[current_state as usize].action_for(value);
-            tape.write(head, action.write_value());
+            self.tape.write(head, action.write_value());
 
             current_state = match action.next_state() {
                 NextState::HaltState => break,
@@ -170,8 +182,8 @@ impl<const N: usize> Analyzer<{N}> {
         }
 
 
-        let r = tape.written_range();
-        let ones = (r.start.0..r.end.0).filter(|&id| tape.get(CellId(id)).0).count() as u64;
+        let r = self.tape.written_range();
+        let ones = (r.start.0..r.end.0).filter(|&id| self.tape.get(CellId(id)).0).count() as u64;
 
         Outcome::Halted { steps, ones }
     }
