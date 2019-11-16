@@ -103,6 +103,11 @@ impl Summary {
             Yellow.bold().paint(halted_non_high_score),
             Yellow.bold().paint(self.percent(halted_non_high_score)),
         );
+        println!(
+            "  - {} ({}) TMs halted after 1 step (their first transition was to the halt state)",
+            Yellow.bold().paint(self.num_immediate_halt),
+            Yellow.bold().paint(self.percent(self.num_immediate_halt)),
+        );
 
         // ----- Non-terminated
         println!(

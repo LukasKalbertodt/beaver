@@ -162,7 +162,12 @@ fn run_tm<const N: usize>(tm: &Tm<{N}>, args: &Args) -> Outcome {
 }
 
 fn static_analysis<const N: usize>(tm: &Tm<{N}>) -> Option<Outcome> {
-    // The simplest check: has the TM a transition to the halt state at all?
+    // Is the start 0 action transitioning to the halt state?
+    if tm.states[0].on_0.will_halt() {
+        return Some(Outcome::ImmediateHalt);
+    }
+
+    // Has the TM a transition to the halt state at all?
     if !tm.states.iter().flat_map(|s| s.actions()).any(|a| a.will_halt()) {
         return Some(Outcome::NoHaltState);
     }
