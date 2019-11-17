@@ -1,8 +1,10 @@
-Busy Beaver in Rust
-===================
+Busy Beaver
+===========
 
-An application that analyses/simulates all possible binary (tape alphabet = {0, 1}) N-state turing machines, where `N` is given as command line argument.
-All TMs are generated, then categorized on static analysis or their runtime behavior and finally a summary of all results is printed.
+An application that analyses/simulates all possible N-state turing machines with tape alphabet = {0, 1}, where `N` is given as command line argument.
+All TMs are generated, then categorized based on static analysis or their runtime behavior.
+Finally a summary of all results is printed.
+This is related to the [Busy Beaver game](https://en.wikipedia.org/wiki/Busy_Beaver_game).
 
 **Features**:
 - Nice output, including histogram
@@ -10,7 +12,9 @@ All TMs are generated, then categorized on static analysis or their runtime beha
 - Static analysis: state graph reachability check
 - Can detect and categorize ≈97% of non-halting TMs
 
-TODO: pictures
+<p align="center">
+    <img src=".github/readme-image.png" width="90%"></img>
+</p>
 
 **Potential goals for future development**
 - [ ] Optimize so that `-n4` can run in under one minute (on my notebook)
