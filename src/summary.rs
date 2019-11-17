@@ -91,6 +91,9 @@ impl Summary {
             self.high_score = other.high_score;
             self.num_winners = other.num_winners;
             self.fewest_winner_steps = other.fewest_winner_steps;
+        } else if self.high_score == other.high_score {
+            self.num_winners += other.num_winners;
+            self.fewest_winner_steps = min(self.fewest_winner_steps, other.fewest_winner_steps);
         }
 
         self.num_tms += other.num_tms;
