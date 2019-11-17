@@ -51,23 +51,31 @@ impl Summary {
         }
     }
 
+    fn handle_high_score(&mut self, ones: u64, steps: u64) {
+        if ones > self.high_score {
+            self.high_score = ones;
+            self.num_winners = 1;
+            self.fewest_winner_steps = steps;
+        } else if ones == self.high_score {
+            self.num_winners += 1;
+            self.fewest_winner_steps = min(self.fewest_winner_steps, steps);
+        }
+    }
     pub fn handle_outcome(&mut self, outcome: Outcome) {
         self.num_tms += 1;
         match outcome {
             Outcome::Halted { steps, ones } => {
                 self.num_halted += 1;
-                if ones > self.high_score {
-                    self.high_score = ones;
-                    self.num_winners = 1;
-                    self.fewest_winner_steps = steps;
-                } else if ones == self.high_score {
-                    self.num_winners += 1;
-                    self.fewest_winner_steps = min(self.fewest_winner_steps, steps);
+                self.handle_high_score(ones, steps);
+            }
+            Outcome::ImmediateHalt { wrote_one } => {
+                self.num_immediate_halt += 1;
+                if wrote_one {
+                    self.handle_high_score(1, 1);
                 }
             }
             Outcome::AbortedAfterMaxSteps => self.num_aborted_after_max_steps += 1,
             Outcome::NoHaltState => self.num_no_halt_state += 1,
-            Outcome::ImmediateHalt => self.num_immediate_halt += 1,
             Outcome::HaltStateNotReachable => self.num_halt_unreachable += 1,
         }
     }

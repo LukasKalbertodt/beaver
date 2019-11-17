@@ -67,8 +67,9 @@ impl<const N: usize> Analyzer<{N}> {
     /// transitioning to the halt state. In that case the
     #[inline(always)]
     pub fn check_immediate_halt(tm: &Tm<{N}>) -> Option<Outcome> {
-        if tm.states[0].on_0.will_halt() {
-            return Some(Outcome::ImmediateHalt);
+        if tm.start_action().will_halt() {
+            let wrote_one = tm.start_action().write_value().0;
+            return Some(Outcome::ImmediateHalt { wrote_one });
         }
 
         None

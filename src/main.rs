@@ -160,8 +160,10 @@ pub enum Outcome {
     // ----- Outcomes from static analysis -----------------------------------
     /// The start state of the TM for the cell value 0 has the halt state as
     /// next state. This means the TM terminates in one step. It might write a
-    /// single one, but we just ignore that information.
-    ImmediateHalt,
+    /// single one, though.
+    ImmediateHalt {
+        wrote_one: bool,
+    },
 
     /// The TM does not even have a transition to the halt state at all.
     NoHaltState,
