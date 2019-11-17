@@ -166,9 +166,44 @@ where
         let mut head = CellId(0);
         let mut current_state: u8 = 0;
 
+        // The following variables are part of a simple run-away analysis.
+        // Whenever we reach a cell outside of the "written range" (the range
+        // spanning all cells there were written to), we set `running_away` to
+        // `true`. We also mark the current state in `visited_during_run_away`.
+        //
+        // If we ever visit the same state twice during a run-away phase (i.e.
+        // without returning into the "written range"), we know that the TM is
+        // caught in a run-away loop. Attempt of a "proof":
+        //
+        // Assume we are currently in a run-away phase with the current state X
+        // and we already visited X during this current run-away phase. Then
+        // that means there is a loop from X to itself when using only `on_0`
+        // transitions (in a run-away phase we only read 0 as cell values). And
+        // since we are reading a 0 again, we will stay in that loop. Not that
+        // within this loop we never got back inside of the "written range".
+        // And this won't change, because the second time we encounter X the
+        // `head` is *at least* as far outside of the "written range" as when
+        // we first encountered X.
+        let mut running_away = false;
+        let mut visited_during_run_away: [bool; N] = array(false);
+
         let mut steps = 0;
         loop {
             steps += 1;
+
+            if !self.tape.written_range().contains(&head) {
+                running_away = true;
+                let visited_state = &mut visited_during_run_away[current_state as usize];
+                if *visited_state {
+                    return Outcome::RunAwayDetected;
+                } else {
+                    *visited_state = true;
+                }
+            } else if running_away {
+                // Reset everything related to this check.
+                running_away = false;
+                visited_during_run_away = array(false);
+            }
 
             let value = self.tape.get(head);
             let action = tm.states[current_state as usize].action_for(value);

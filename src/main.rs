@@ -178,6 +178,11 @@ pub enum Outcome {
     /// reached from the start state.
     HaltStateNotReachable,
 
+    /// While executing the TM a run-away was detected, meaning that the TM
+    /// was caught in a loop only visiting new cells, thus never terminating.
+    RunAwayDetected,
+}
+
 impl Outcome {
     fn was_aborted(&self) -> bool {
         if let Outcome::AbortedAfterMaxSteps = *self {

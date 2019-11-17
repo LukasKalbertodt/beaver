@@ -37,6 +37,9 @@ pub struct Summary {
 
     /// `Outcome::HaltStateNotReachable`
     num_halt_unreachable: u64,
+
+    /// `Outcome::RunAwayDetected` (dynamic analysis)
+    num_runaway_dyn: u64,
 }
 
 impl Summary {
@@ -52,6 +55,7 @@ impl Summary {
             num_simple_elope: 0,
             num_no_halt_state: 0,
             num_halt_unreachable: 0,
+            num_runaway_dyn: 0,
         }
     }
 
@@ -83,6 +87,7 @@ impl Summary {
             Outcome::SimpleElope => self.num_simple_elope += 1,
             Outcome::NoHaltState => self.num_no_halt_state += 1,
             Outcome::HaltStateNotReachable => self.num_halt_unreachable += 1,
+            Outcome::RunAwayDetected => self.num_runaway_dyn += 1,
         }
     }
 
@@ -103,6 +108,7 @@ impl Summary {
         self.num_simple_elope += other.num_simple_elope;
         self.num_no_halt_state += other.num_no_halt_state;
         self.num_halt_unreachable += other.num_halt_unreachable;
+        self.num_runaway_dyn += other.num_runaway_dyn;
     }
 
     fn percent(&self, v: u64) -> String {
@@ -115,7 +121,8 @@ impl Summary {
         let num_non_terminated = self.num_aborted_after_max_steps
             + self.num_simple_elope
             + self.num_no_halt_state
-            + self.num_halt_unreachable;
+            + self.num_halt_unreachable
+            + self.num_runaway_dyn;
 
         Blue.bold().with(|| println!("▸ Results:"));
 
@@ -162,6 +169,11 @@ impl Summary {
             "  - {} ({}) statically could not reach the halt state",
             Magenta.bold().paint(self.num_halt_unreachable),
             Magenta.bold().paint(self.percent(self.num_halt_unreachable)),
+        );
+        println!(
+            "  - {} ({}) were caught in a run-away loop",
+            Magenta.bold().paint(self.num_runaway_dyn),
+            Magenta.bold().paint(self.percent(self.num_runaway_dyn)),
         );
         println!(
             "  - {} ({}) were aborted after the maximum number of steps ({})",
