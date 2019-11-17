@@ -95,7 +95,9 @@ where
                 // Analyze each TM in this batch
                 for tm in job {
                     let outcome = analyzer.analyze(&tm);
-                    println!("{:?} => {:#?}", outcome, tm);
+                    if args.print_aborted && outcome.was_aborted() {
+                        println!("{:?} => {:#?}", outcome, tm);
+                    }
                     summary.handle_outcome(outcome);
                 }
 
@@ -175,4 +177,13 @@ pub enum Outcome {
     /// If the turing machine has a state graph where the halt state cannot be
     /// reached from the start state.
     HaltStateNotReachable,
+
+impl Outcome {
+    fn was_aborted(&self) -> bool {
+        if let Outcome::AbortedAfterMaxSteps = *self {
+            true
+        } else {
+            false
+        }
+    }
 }

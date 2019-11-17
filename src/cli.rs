@@ -17,4 +17,9 @@ pub struct Args {
     /// If specified, the progress bar is not shown.
     #[structopt(long)]
     pub no_pb: bool,
+
+    /// If specified, TMs that are aborted after `max-steps` will be printed.
+    /// You probably want to define this with `--no-pb`.
+    #[structopt(long)]
+    pub print_aborted: bool,
 }
