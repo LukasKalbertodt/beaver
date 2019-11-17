@@ -1,15 +1,14 @@
 language: rust
-rust: nightly
 
-script:
-  - cargo build || travis_terminate 1
-  - cargo test || travis_terminate 1
-
-env:
-  - RUSTFLAGS="--deny warnings"
-
-matrix:
+jobs:
   include:
+    - name: "Compile & Test"
+      rust: nightly
+      script:
+        - cargo build || travis_terminate 1
+        - cargo test || travis_terminate 1
+      env:
+        - RUSTFLAGS="--deny warnings"
     - name: "Check style"
       language: generic
       script: ./ci/check-basic-style.sh

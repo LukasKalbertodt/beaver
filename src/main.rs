@@ -20,7 +20,6 @@ use crate::{
     tm::{AllTmCombinations, State},
 };
 
-
 mod analyze;
 mod cli;
 mod summary;
