@@ -173,6 +173,7 @@ pub enum Move {
 /// - 2: 10_000
 /// - 3: 7_529_536
 /// - 4: 11_019_960_576
+/// - 5: 26_559_922_791_424
 ///
 /// It is fairly cheap to clone this iterator.
 #[derive(Clone)]

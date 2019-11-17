@@ -1,6 +1,5 @@
 use std::{
     array::LengthAtMost32,
-    convert::TryInto,
 };
 
 use crate::{
@@ -18,10 +17,6 @@ pub struct Analyzer<const N: usize> {
     /// Stack containing state-ids used by `check_halt_reachable`.
     dfs_stack: Vec<u8>,
 
-    /// "Visited" flag for each state, indexed by state-ids. Used by
-    /// `check_halt_reachable`.
-    dfs_visited: [bool; N],
-
     /// The actual TM tape used by `run_tm`.
     tape: Tape,
 }
@@ -35,19 +30,18 @@ macro_rules! try_check {
     };
 }
 
-impl<const N: usize> Analyzer<{N}> {
+impl<const N: usize> Analyzer<{N}>
+where
+    [bool; N]: LengthAtMost32 + Default,
+{
     /// Creates a new analyzer instance. You can use this instance to analyze
     /// different TMs. You can reuse this as often as you like. All values
     /// stored inside of this either don't change or are cleared for each new
     /// TM.
-    pub fn new(args: Args) -> Self
-    where
-        [bool; N]: LengthAtMost32,
-    {
+    pub fn new(args: Args) -> Self {
         Self {
             args,
             dfs_stack: Vec::new(),
-            dfs_visited: vec![false; N][..].try_into().unwrap(),
             tape: Tape::new(),
         }
     }
@@ -110,14 +104,14 @@ impl<const N: usize> Analyzer<{N}> {
     pub fn check_halt_reachable(&mut self, tm: &Tm<{N}>) -> Option<Outcome> {
         self.dfs_stack.clear();
         self.dfs_stack.push(0);
-        self.dfs_visited.iter_mut().for_each(|v| *v = false);
+        let mut visited: [bool; N] = array(false);
 
         // Stays `true` until we encounter an action that actually writes a 1.
         let mut only_0s = true;
 
         let mut reached_halt = false;
         'outer: while let Some(state_id) = self.dfs_stack.pop() {
-            let state_visited = &mut self.dfs_visited[state_id as usize];
+            let state_visited = &mut visited[state_id as usize];
             if *state_visited {
                 continue;
             }
@@ -133,7 +127,7 @@ impl<const N: usize> Analyzer<{N}> {
                 // to reconsider them again.
                 self.dfs_stack.clear();
                 self.dfs_stack.push(0);
-                self.dfs_visited.iter_mut().for_each(|v| *v = false);
+                visited = array(false);
             }
 
             macro_rules! check_state {
@@ -200,4 +194,13 @@ impl<const N: usize> Analyzer<{N}> {
 
         Outcome::Halted { steps, ones }
     }
+}
+
+fn array<T: Copy + Default, const N: usize>(v: T) -> [T; {N}]
+where
+    [T; N]: Default,
+{
+    let mut out: [T; N] = Default::default();
+    out.iter_mut().for_each(|x| *x = v);
+    out
 }

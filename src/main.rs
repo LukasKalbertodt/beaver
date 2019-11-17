@@ -57,7 +57,7 @@ fn run<const N: usize>(args: &Args)
 where
     [State; N]: LengthAtMost32,
     [u16; N]: LengthAtMost32,
-    [bool; N]: LengthAtMost32,
+    [bool; N]: LengthAtMost32 + Default,
 {
     // Iterator to iterate over all possible TMs.
     let mut tms = <AllTmCombinations<{N}>>::new();
