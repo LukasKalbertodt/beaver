@@ -9,8 +9,6 @@ use crate::{
 
 
 pub struct Summary {
-    args: Args,
-
     /// The total number of TMs.
     num_tms: u64,
 
@@ -39,10 +37,9 @@ pub struct Summary {
 }
 
 impl Summary {
-    pub fn new(args: &Args, num_tms: u64) -> Self {
+    pub fn new() -> Self {
         Self {
-            args: args.clone(),
-            num_tms,
+            num_tms: 0,
             high_score: 0,
             num_winners: 0,
             fewest_winner_steps: 0,
@@ -55,6 +52,7 @@ impl Summary {
     }
 
     pub fn handle_outcome(&mut self, outcome: Outcome) {
+        self.num_tms += 1;
         match outcome {
             Outcome::Halted { steps, ones } => {
                 self.num_halted += 1;
@@ -74,12 +72,27 @@ impl Summary {
         }
     }
 
+    pub fn add(&mut self, other: Summary) {
+        if self.high_score < other.high_score {
+            self.high_score = other.high_score;
+            self.num_winners = other.num_winners;
+            self.fewest_winner_steps = other.fewest_winner_steps;
+        }
+
+        self.num_tms += other.num_tms;
+        self.num_halted += other.num_halted;
+        self.num_aborted_after_max_steps += other.num_aborted_after_max_steps;
+        self.num_immediate_halt += other.num_immediate_halt;
+        self.num_no_halt_state += other.num_no_halt_state;
+        self.num_halt_unreachable += other.num_halt_unreachable;
+    }
+
     fn percent(&self, v: u64) -> String {
         let percent = 100.0 * (v as f64) / (self.num_tms as f64);
         format!("{:.2}%", percent)
     }
 
-    pub fn print_report(&self) {
+    pub fn print_report(&self, args: &Args) {
         let halted_non_high_score = (self.num_halted + self.num_immediate_halt) - self.num_winners;
         let num_non_terminated =
             self.num_aborted_after_max_steps + self.num_no_halt_state + self.num_halt_unreachable;
@@ -129,7 +142,7 @@ impl Summary {
             "  - {} ({}) were aborted after the maximum number of steps ({})",
             Red.bold().paint(self.num_aborted_after_max_steps),
             Red.bold().paint(self.percent(self.num_aborted_after_max_steps)),
-            self.args.max_steps,
+            args.max_steps,
         );
     }
 }

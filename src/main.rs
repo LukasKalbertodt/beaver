@@ -69,8 +69,6 @@ where
 
 
     // ----- Run ---------------------------------------------------
-    let summary = Summary::new(args, num_tms as u64);
-    let summary = Arc::new(Mutex::new(summary));
     let mut pb = ProgressBar::new(num_tms as u64);
     pb.set_max_refresh_rate(Some(Duration::from_millis(10)));
     let pb = Arc::new(Mutex::new(pb));
@@ -85,33 +83,26 @@ where
     // Create the worker threads
     let join_handles = (0..num_cpus::get()).map(|_| {
         let new_jobs = r.clone();
-        let summary = summary.clone();
         let pb = pb.clone();
         let args = args.clone();
         thread::spawn(move || {
-            // Cache this vector here.
-            let mut outcomes = Vec::new();
             let mut analyzer = Analyzer::new(args);
+            let mut summary = Summary::new();
 
             for job in new_jobs.iter() {
-                outcomes.clear();
                 let job_len = job.len() as u64;
 
                 // Analyze each TM in this batch
                 for tm in job {
                     let outcome = analyzer.analyze(&tm);
-                    outcomes.push(outcome);
-                }
-
-                // Handle the outcomes
-                let mut summary = summary.lock().expect("poisened lock");
-                for outcome in &outcomes {
-                    summary.handle_outcome(*outcome);
+                    summary.handle_outcome(outcome);
                 }
 
                 // Advance progress bar
                 pb.lock().expect("poisened lock").add(job_len);
             }
+
+            summary
         })
     }).collect::<Vec<_>>();
 
@@ -129,8 +120,10 @@ where
 
     // Join all threads
     drop(s);
+    let mut summary = Summary::new();
     for handle in join_handles {
-        handle.join().expect("panic in worker thread");
+        let thread_summary = handle.join().expect("panic in worker thread");
+        summary.add(thread_summary);
     }
 
     if !args.no_pb {
@@ -143,7 +136,7 @@ where
 
     // ----- Print results ---------------------------------------------------
     println!();
-    summary.lock().unwrap().print_report();
+    summary.print_report(args);
 }
 
 
