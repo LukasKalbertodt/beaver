@@ -86,7 +86,7 @@ where
         let pb = pb.clone();
         let args = args.clone();
         thread::spawn(move || {
-            let mut analyzer = Analyzer::new(args);
+            let mut analyzer = Analyzer::new(args.clone());
             let mut summary = Summary::new();
 
             for job in new_jobs.iter() {
@@ -95,11 +95,14 @@ where
                 // Analyze each TM in this batch
                 for tm in job {
                     let outcome = analyzer.analyze(&tm);
+                    println!("{:?} => {:#?}", outcome, tm);
                     summary.handle_outcome(outcome);
                 }
 
                 // Advance progress bar
-                pb.lock().expect("poisened lock").add(job_len);
+                if !args.no_pb {
+                    pb.lock().expect("poisened lock").add(job_len);
+                }
             }
 
             summary
