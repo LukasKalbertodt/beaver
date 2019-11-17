@@ -81,7 +81,8 @@ where
     let (s, r) = crossbeam_channel::bounded::<AllTmCombinations<{N}>>(3);
 
     // Create the worker threads
-    let join_handles = (0..num_cpus::get()).map(|_| {
+    let num_threads = num_cpus::get();
+    let join_handles = (0..num_threads).map(|_| {
         let new_jobs = r.clone();
         let pb = pb.clone();
         let args = args.clone();
@@ -137,7 +138,17 @@ where
     }
 
     println!();
-    println!("  (That took {:.2?})", before.elapsed());
+    let elapsed = before.elapsed();
+    // The `as u64` could technically overflow, but 2^64ns = 584 years, so...
+    let core_nanos_per_tm = (elapsed.as_nanos() * num_threads as u128) / num_tms as u128;
+    let core_time_per_tm = Duration::from_nanos(core_nanos_per_tm as u64);
+    println!(
+        "  (That took {:.2?}, {:?} per TM on {} threads -> {:?} core time per TM)",
+        elapsed,
+        core_time_per_tm / num_threads,
+        num_threads,
+        core_time_per_tm,
+    );
 
     // ----- Print results ---------------------------------------------------
     println!();
