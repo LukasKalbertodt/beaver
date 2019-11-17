@@ -26,4 +26,17 @@ pub struct Args {
     /// Number of threads to use. Defaults to the number of virtual CPUs.
     #[structopt(long, short = "j")]
     pub num_threads: Option<u32>,
+
+    /// Set the height of the histogram that's printed in the end.
+    #[structopt(long, default_value = "15")]
+    pub histogram_height: u32,
+
+    /// Set the max number of steps included in the histogram that's printed in
+    /// the end.
+    #[structopt(long, default_value = "30")]
+    pub histogram_cutoff: u64,
+
+    /// If specified, the histogram is now shown.
+    #[structopt(long)]
+    pub hide_histogram: bool,
 }

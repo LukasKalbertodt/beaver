@@ -1,4 +1,7 @@
-use std::cmp::min;
+use std::{
+    cmp::min,
+    collections::HashMap,
+};
 
 use term_painter::{ToStyle, Color::*};
 
@@ -19,6 +22,9 @@ pub struct Summary {
     /// The fewest number of steps a winner required to write `high_score` many
     /// 1s.
     fewest_winner_steps: u64,
+
+    /// Records how many TMs finished after how many steps.
+    step_histogram: HashMap<u64, u64>,
 
     /// `Outcome::Halted`
     num_halted: u64,
@@ -49,6 +55,7 @@ impl Summary {
             high_score: 0,
             num_winners: 0,
             fewest_winner_steps: 0,
+            step_histogram: HashMap::new(),
             num_halted: 0,
             num_aborted_after_max_steps: 0,
             num_immediate_halt: 0,
@@ -76,6 +83,8 @@ impl Summary {
             Outcome::Halted { steps, ones } => {
                 self.num_halted += 1;
                 self.handle_high_score(ones, steps);
+
+                *self.step_histogram.entry(steps).or_insert(0) += 1;
             }
             Outcome::ImmediateHalt { wrote_one } => {
                 self.num_immediate_halt += 1;
@@ -109,6 +118,10 @@ impl Summary {
         self.num_no_halt_state += other.num_no_halt_state;
         self.num_halt_unreachable += other.num_halt_unreachable;
         self.num_runaway_dyn += other.num_runaway_dyn;
+
+        for (steps, count) in &other.step_histogram {
+            *self.step_histogram.entry(*steps).or_insert(0) += count;
+        }
     }
 
     fn percent(&self, v: u64) -> String {
@@ -181,5 +194,98 @@ impl Summary {
             Red.bold().paint(self.percent(self.num_aborted_after_max_steps)),
             args.max_steps,
         );
+
+        if !args.hide_histogram {
+            println!();
+            println!();
+            self.print_histogram(args);
+        }
+
+        println!();
+    }
+
+    fn print_histogram(&self, args: &Args) {
+        let histogram_height = args.histogram_height as usize;
+        let histogram_cutoff = args.histogram_cutoff;
+
+        if self.step_histogram.is_empty() {
+            println!("   (histogram not shown as TMs ran for at most 1 step)");
+            return;
+        } else {
+            Blue.bold().with(|| println!("▸ Histogram (how many TMs halted after x steps):"));
+            println!("note: the y-axis is logarithmic");
+            println!();
+        }
+
+        let max = self.step_histogram.values().max().copied().expect("histogram empty");
+        let max_log = (max as f64).log10();
+
+        let mut lines = vec![String::new(); histogram_height];
+        for (row, line) in lines.iter_mut().enumerate() {
+            let inv_row = histogram_height - row - 1;
+            if inv_row == 0 {
+                line.push_str("        0 ▕");
+            } else if inv_row == histogram_height - 1 {
+                line.push_str(&format!("{: >9} ▕", max));
+            } else if inv_row % 2 == 0 && inv_row < histogram_height - 2 {
+                let ratio = inv_row as f64 / histogram_height as f64;
+                let v = 10.0f64.powf(max_log * ratio).round() as u32;
+                line.push_str(&format!("{: >9} ▕", v));
+            } else {
+                line.push_str("          ▕");
+            }
+        }
+
+        for steps in 2..histogram_cutoff {
+            lines[..histogram_height - 1].iter_mut().for_each(|l| l.push(' '));
+            lines[histogram_height - 1].push('▁');
+
+            let count = self.step_histogram.get(&steps).copied().unwrap_or(0);
+            let count_log = if count == 0 {
+                0.0
+            } else {
+                (count as f64).log10()
+            };
+
+            // This is the height of the bar in eigths steps. We have to offset
+            // it all by 1 since we need the lowest eigth for the bottom line.
+            // To make logic inside the loop easier this height we are
+            // calculating is at least 1. In other words: now the bottom line
+            // is part of the bar.
+            let bar_height_eights = (
+                (8.0 * (histogram_height as f64) - 1.0) * (count_log / max_log)
+            ).round() as usize + 1;
+
+            for row in 0..histogram_height {
+                let inv_row = histogram_height - row - 1;
+                let eights_in_this_line = std::cmp::min(
+                    bar_height_eights.saturating_sub(inv_row * 8),
+                    8,
+                );
+                let symbols = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+                let symbol = symbols[eights_in_this_line];
+                lines[row].push(symbol);
+                lines[row].push(symbol);
+            }
+        }
+
+        lines.iter().for_each(|l| println!("{}", l));
+
+        print!("    steps: ");
+        for steps in 2..histogram_cutoff {
+            print!("{: >3}", steps);
+        }
+        println!();
+
+        print!("    count: ");
+        for steps in 2..histogram_cutoff {
+            let count = self.step_histogram.get(&steps).copied().unwrap_or(0);
+            if count < 100 {
+                print!(" {: >2}", count);
+            } else {
+                print!("   ");
+            }
+        }
+        println!();
     }
 }
