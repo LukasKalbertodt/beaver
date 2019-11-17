@@ -40,9 +40,10 @@ fn main() {
         2 => run::<2>(&args),
         3 => run::<3>(&args),
         4 => run::<4>(&args),
+        5 => run::<5>(&args),
         _ => {
             eprintln!(
-                "Currently, only `-n` up to 4 are allowed. This whole problem \
+                "Currently, only `-n` up to 5 are allowed. This whole problem \
                     is about quickly growing functions, you know..."
             );
             return;
