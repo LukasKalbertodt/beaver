@@ -81,7 +81,7 @@ where
     let (s, r) = crossbeam_channel::bounded::<AllTmCombinations<{N}>>(3);
 
     // Create the worker threads
-    let num_threads = num_cpus::get();
+    let num_threads = args.num_threads.unwrap_or_else(|| num_cpus::get() as u32);
     let join_handles = (0..num_threads).map(|_| {
         let new_jobs = r.clone();
         let pb = pb.clone();

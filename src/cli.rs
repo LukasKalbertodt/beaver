@@ -22,4 +22,8 @@ pub struct Args {
     /// You probably want to define this with `--no-pb`.
     #[structopt(long)]
     pub print_aborted: bool,
+
+    /// Number of threads to use. Defaults to the number of virtual CPUs.
+    #[structopt(long, short = "j")]
+    pub num_threads: Option<u32>,
 }
