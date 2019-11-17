@@ -4,6 +4,7 @@ use std::{
     array::LengthAtMost32,
     convert::TryInto,
     fmt,
+    sync::Arc,
 };
 
 use crate::CellValue;
@@ -165,14 +166,17 @@ pub enum Move {
 /// - 2: 10_000
 /// - 3: 7_529_536
 /// - 4: 11_019_960_576
+///
+/// It is fairly cheap to clone this iterator.
+#[derive(Clone)]
 pub struct AllTmCombinations<const N: usize> {
     // The depth is iteration state and basically determines which digits of
     // `indices` is increased next. An `i8` is sufficient as this is bounded by
     // `N` (which will never be as high as 127).
-    depth: i8,
+    depth: u8,
 
     /// This lists all possible states. This is pregenerated in `new`.
-    all_states: Box<[State]>,
+    all_states: Arc<[State]>,
 
     /// This is the current state of iteration. It's basically a N digit number
     /// with base `all_states.len()`. We use `u16` to have dense memory:
@@ -226,19 +230,60 @@ where
         let total_tms = (all_states.len() as u64).pow(N as u32);
 
         Self {
-            all_states: all_states.into_boxed_slice(),
+            all_states: all_states.into(),
             last_states,
             indices,
             depth: 0,
             remaining: total_tms,
         }
     }
+
+    /// Splits off a new iterator that iterates over the next `num_items` TMs,
+    /// while the `self` iterator is advanced by `num_items`.
+    pub fn split_off(&mut self, num_items: u64) -> Self {
+        // Prepare out iterator
+        let mut out = self.clone();
+        out.remaining = num_items;
+
+        // Advance this iterator
+        if num_items >= self.remaining {
+            self.remaining = 0;
+        } else {
+            self.remaining -= num_items;
+
+            // Subtract from `indices`, the base `num_states` N-digit number.
+            let num_states = self.all_states.len() as u64;
+            let mut subtract = num_items;
+            let mut i = N - 1;
+            while subtract > 0 {
+                self.indices[i] += (subtract % num_states) as u16;
+                if self.indices[i] >= num_states as u16 {
+                    // Handle overflow: add "carry" to `subtract`
+                    subtract += num_states;
+                    self.indices[i] -= num_states as u16;
+                }
+
+                // Go to the next digit
+                subtract /= num_states;
+
+                // This will never underflow because we made sure `num_items <
+                // self.remaining`.
+                i -= 1;
+            }
+        }
+
+        out
+    }
 }
 
 impl<const N: usize> Iterator for AllTmCombinations<{N}> {
     type Item = Tm<{N}>;
     fn next(&mut self) -> Option<Self::Item> {
-        while self.depth >= 0 {
+        if self.remaining == 0 {
+            return None;
+        }
+
+        loop {
             // This `unsafe` is fine: `self.indices` always has the length `N`.
             // And `self.depth` is *only* increased in this method below. And
             // that clearly only happens if `depth` is not `N - 1`. And since
@@ -265,7 +310,7 @@ impl<const N: usize> Iterator for AllTmCombinations<{N}> {
                         *self.last_states.get_unchecked_mut(self.depth as usize) = *state;
                     }
 
-                    if self.depth == N as i8 - 1 {
+                    if self.depth == N as u8 - 1 {
                         self.remaining -= 1;
                         return Some(Tm { states: self.last_states });
                     } else {
@@ -274,8 +319,6 @@ impl<const N: usize> Iterator for AllTmCombinations<{N}> {
                 }
             }
         }
-
-        None
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {

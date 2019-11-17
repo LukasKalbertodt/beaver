@@ -17,7 +17,7 @@ use crate::{
     cli::Args,
     summary::Summary,
     tape::CellValue,
-    tm::{AllTmCombinations, State, Tm},
+    tm::{AllTmCombinations, State},
 };
 
 
@@ -52,6 +52,7 @@ fn main() {
 }
 
 /// Runs the experiment for a given `N`.
+#[inline(never)]
 fn run<const N: usize>(args: &Args)
 where
     [State; N]: LengthAtMost32,
@@ -79,7 +80,7 @@ where
     // Create a channel to pass pass the work to the workers. We bound it to
     // three to have always have some work ready, but to not use too much
     // memory.
-    let (s, r) = crossbeam_channel::bounded::<Vec<Tm<{N}>>>(3);
+    let (s, r) = crossbeam_channel::bounded::<AllTmCombinations<{N}>>(3);
 
     // Create the worker threads
     let join_handles = (0..num_cpus::get()).map(|_| {
@@ -94,10 +95,11 @@ where
 
             for job in new_jobs.iter() {
                 outcomes.clear();
+                let job_len = job.len() as u64;
 
                 // Analyze each TM in this batch
-                for tm in &job {
-                    let outcome = analyzer.analyze(tm);
+                for tm in job {
+                    let outcome = analyzer.analyze(&tm);
                     outcomes.push(outcome);
                 }
 
@@ -108,7 +110,7 @@ where
                 }
 
                 // Advance progress bar
-                pb.lock().expect("poisened lock").add(job.len() as u64);
+                pb.lock().expect("poisened lock").add(job_len);
             }
         })
     }).collect::<Vec<_>>();
@@ -120,7 +122,8 @@ where
         _ => 100_000,
     };
     while tms.len() > 0 {
-        let job = tms.by_ref().take(chunk_size).collect::<Vec<_>>();
+        let job = tms.split_off(chunk_size);
+        // let job = tms.by_ref().take(chunk_size).collect::<Vec<_>>();
         s.send(job).expect("channel unexpectedly disconnected");
     }
 
