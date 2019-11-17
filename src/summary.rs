@@ -29,6 +29,9 @@ pub struct Summary {
     /// `Outcome::ImmediateHalt`
     num_immediate_halt: u64,
 
+    /// `Outcome::SimpleElope`
+    num_simple_elope: u64,
+
     /// `Outcome::NoHaltState`
     num_no_halt_state: u64,
 
@@ -46,6 +49,7 @@ impl Summary {
             num_halted: 0,
             num_aborted_after_max_steps: 0,
             num_immediate_halt: 0,
+            num_simple_elope: 0,
             num_no_halt_state: 0,
             num_halt_unreachable: 0,
         }
@@ -61,6 +65,7 @@ impl Summary {
             self.fewest_winner_steps = min(self.fewest_winner_steps, steps);
         }
     }
+
     pub fn handle_outcome(&mut self, outcome: Outcome) {
         self.num_tms += 1;
         match outcome {
@@ -75,6 +80,7 @@ impl Summary {
                 }
             }
             Outcome::AbortedAfterMaxSteps => self.num_aborted_after_max_steps += 1,
+            Outcome::SimpleElope => self.num_simple_elope += 1,
             Outcome::NoHaltState => self.num_no_halt_state += 1,
             Outcome::HaltStateNotReachable => self.num_halt_unreachable += 1,
         }
@@ -91,6 +97,7 @@ impl Summary {
         self.num_halted += other.num_halted;
         self.num_aborted_after_max_steps += other.num_aborted_after_max_steps;
         self.num_immediate_halt += other.num_immediate_halt;
+        self.num_simple_elope += other.num_simple_elope;
         self.num_no_halt_state += other.num_no_halt_state;
         self.num_halt_unreachable += other.num_halt_unreachable;
     }
@@ -102,8 +109,10 @@ impl Summary {
 
     pub fn print_report(&self, args: &Args) {
         let halted_non_high_score = (self.num_halted + self.num_immediate_halt) - self.num_winners;
-        let num_non_terminated =
-            self.num_aborted_after_max_steps + self.num_no_halt_state + self.num_halt_unreachable;
+        let num_non_terminated = self.num_aborted_after_max_steps
+            + self.num_simple_elope
+            + self.num_no_halt_state
+            + self.num_halt_unreachable;
 
         Blue.bold().with(|| println!("▸ Results:"));
 
@@ -135,6 +144,11 @@ impl Summary {
             "- {} ({}) did not terminate:",
             Magenta.bold().paint(num_non_terminated),
             Magenta.bold().paint(self.percent(num_non_terminated)),
+        );
+        println!(
+            "  - {} ({}) immediately ran away in one direction and remained in the start state",
+            Magenta.bold().paint(self.num_simple_elope),
+            Magenta.bold().paint(self.percent(self.num_simple_elope)),
         );
         println!(
             "  - {} ({}) did not contain a transition to the halt state",

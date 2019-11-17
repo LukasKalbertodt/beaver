@@ -168,6 +168,10 @@ pub enum Outcome {
     /// The TM does not even have a transition to the halt state at all.
     NoHaltState,
 
+    /// The TM does immediately go into one direction without ever stopping.
+    /// This happens if the start action has `next_state == 0`.
+    SimpleElope,
+
     /// If the turing machine has a state graph where the halt state cannot be
     /// reached from the start state.
     HaltStateNotReachable,

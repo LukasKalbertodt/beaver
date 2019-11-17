@@ -16,6 +16,13 @@ pub struct Tm<const N: usize> {
     pub states: [State; N],
 }
 
+impl<const N: usize> Tm<{N}> {
+    /// Returns the first transition that will be executed (`states[0].on_0`).
+    pub fn start_action(&self) -> Action {
+        self.states[0].on_0
+    }
+}
+
 impl<const N: usize> fmt::Debug for Tm<{N}> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_map()

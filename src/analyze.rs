@@ -57,6 +57,7 @@ impl<const N: usize> Analyzer<{N}> {
         // Before even running the TM (dynamic analysis), we analyze it
         // statically to categorize certain TMs early.
         try_check!(Self::check_immediate_halt(tm));
+        try_check!(Self::check_simple_elope(tm));
         try_check!(Self::check_halt_exists(tm));
         try_check!(self.check_halt_reachable(tm));
 
@@ -70,6 +71,17 @@ impl<const N: usize> Analyzer<{N}> {
         if tm.start_action().will_halt() {
             let wrote_one = tm.start_action().write_value().0;
             return Some(Outcome::ImmediateHalt { wrote_one });
+        }
+
+        None
+    }
+
+    /// Static analysis (very fast): checks if the first action has the start
+    /// state as the next state. In those cases, the TM will just run away in
+    /// one direction immediately.
+    pub fn check_simple_elope(tm: &Tm<{N}>) -> Option<Outcome> {
+        if tm.start_action().next_state() == NextState::State(0) {
+            return Some(Outcome::SimpleElope);
         }
 
         None
