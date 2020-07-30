@@ -3,8 +3,6 @@ use std::{
     collections::HashMap,
 };
 
-use term_painter::{ToStyle, Color::*};
-
 use crate::{
     Args, Outcome,
 };
@@ -137,61 +135,64 @@ impl Summary {
             + self.num_halt_unreachable
             + self.num_runaway_dyn;
 
-        Blue.bold().with(|| println!("▸ Results:"));
+        bunt::println!("{$blue+bold}▸ Results:{/$}");
 
         // ----- High scores
-        println!(
-            "- The high score (number of 1s after halting) is: {}",
-            Green.bold().paint(self.high_score),
+        bunt::println!(
+            "- The high score (number of 1s after halting) is: {[green+bold]}",
+            self.high_score,
         );
-        println!("  - {} TMs reached that high score", Green.bold().paint(self.num_winners));
-        println!(
-            "  - The quickest of which reached the high score in {} steps",
-            Green.bold().paint(self.fewest_winner_steps),
+        bunt::println!("  - {[green+bold]} TMs reached that high score", self.num_winners);
+        bunt::println!(
+            "  - The quickest of which reached the high score in {[bold+green]} steps",
+            self.fewest_winner_steps,
         );
 
         // ----- Other halted TMs
-        println!(
-            "- {} ({}) TMs halted but did not get a high score",
-            Yellow.bold().paint(halted_non_high_score),
-            Yellow.bold().paint(self.percent(halted_non_high_score)),
+        bunt::println!(
+            "- {[yellow+bold]} ({[yellow+bold]}) TMs halted but did not get a high score",
+            halted_non_high_score,
+            self.percent(halted_non_high_score),
         );
-        println!(
-            "  - {} ({}) TMs halted after 1 step (their first transition was to the halt state)",
-            Yellow.bold().paint(self.num_immediate_halt),
-            Yellow.bold().paint(self.percent(self.num_immediate_halt)),
+        bunt::println!(
+            "  - {[yellow+bold]} ({[yellow+bold]}) TMs halted after 1 step \
+                (their first transition was to the halt state)",
+            self.num_immediate_halt,
+            self.percent(self.num_immediate_halt),
         );
 
         // ----- Non-terminated
-        println!(
-            "- {} ({}) did not terminate:",
-            Magenta.bold().paint(num_non_terminated),
-            Magenta.bold().paint(self.percent(num_non_terminated)),
+        bunt::println!(
+            "- {[magenta+bold]} ({[magenta+bold]}) did not terminate:",
+            num_non_terminated,
+            self.percent(num_non_terminated),
         );
-        println!(
-            "  - {} ({}) immediately ran away in one direction and remained in the start state",
-            Magenta.bold().paint(self.num_simple_elope),
-            Magenta.bold().paint(self.percent(self.num_simple_elope)),
+        bunt::println!(
+            "  - {[magenta+bold]} ({[magenta+bold]}) immediately ran away in one direction \
+                and remained in the start state",
+            self.num_simple_elope,
+            self.percent(self.num_simple_elope),
         );
-        println!(
-            "  - {} ({}) did not contain a transition to the halt state",
-            Magenta.bold().paint(self.num_no_halt_state),
-            Magenta.bold().paint(self.percent(self.num_no_halt_state)),
+        bunt::println!(
+            "  - {[magenta+bold]} ({[magenta+bold]}) did not contain a transition \
+                to the halt state",
+            self.num_no_halt_state,
+            self.percent(self.num_no_halt_state),
         );
-        println!(
-            "  - {} ({}) statically could not reach the halt state",
-            Magenta.bold().paint(self.num_halt_unreachable),
-            Magenta.bold().paint(self.percent(self.num_halt_unreachable)),
+        bunt::println!(
+            "  - {[magenta+bold]} ({[magenta+bold]}) statically could not reach the halt state",
+            self.num_halt_unreachable,
+            self.percent(self.num_halt_unreachable),
         );
-        println!(
-            "  - {} ({}) were caught in a run-away loop",
-            Magenta.bold().paint(self.num_runaway_dyn),
-            Magenta.bold().paint(self.percent(self.num_runaway_dyn)),
+        bunt::println!(
+            "  - {[magenta+bold]} ({[magenta+bold]}) were caught in a run-away loop",
+            self.num_runaway_dyn,
+            self.percent(self.num_runaway_dyn),
         );
-        println!(
-            "  - {} ({}) were aborted after the maximum number of steps ({})",
-            Red.bold().paint(self.num_aborted_after_max_steps),
-            Red.bold().paint(self.percent(self.num_aborted_after_max_steps)),
+        bunt::println!(
+            "  - {[red+bold]} ({[red+bold]}) were aborted after the maximum number of steps ({})",
+            self.num_aborted_after_max_steps,
+            self.percent(self.num_aborted_after_max_steps),
             args.max_steps,
         );
 
@@ -212,7 +213,7 @@ impl Summary {
             println!("   (histogram not shown as TMs ran for at most 1 step)");
             return;
         } else {
-            Blue.bold().with(|| println!("▸ Histogram (how many TMs halted after x steps):"));
+            bunt::println!("{$blue+bold}▸ Histogram (how many TMs halted after x steps):{/$}");
             println!("note: the y-axis is logarithmic");
             println!();
         }

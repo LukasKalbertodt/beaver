@@ -9,7 +9,6 @@ use std::{
 
 use pbr::ProgressBar;
 use structopt::StructOpt;
-use term_painter::{ToStyle, Color::*};
 
 use crate::{
     analyze::Analyzer,
@@ -61,7 +60,7 @@ where
     let num_tms = tms.len();
 
     println!("");
-    Blue.bold().with(|| println!("▸ Analyzing all {} TMs with {} states...", num_tms, N));
+    bunt::println!("{$blue+bold}▸ Analyzing all {} TMs with {} states...{/$}", num_tms, N);
     println!("");
 
 
