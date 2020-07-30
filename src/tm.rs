@@ -246,7 +246,7 @@ impl<const N: usize> AllTmCombinations<N> {
     pub fn split_off(&mut self, num_items: u64) -> Self {
         // Prepare out iterator
         let mut out = self.clone();
-        out.remaining = num_items;
+        out.remaining = std::cmp::min(out.remaining, num_items);
 
         // Advance this iterator
         if num_items >= self.remaining {
