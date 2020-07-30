@@ -1,7 +1,3 @@
-use std::{
-    array::LengthAtMost32,
-};
-
 use crate::{
     Args, Outcome,
     tape::{CellId, Tape},
@@ -30,9 +26,9 @@ macro_rules! try_check {
     };
 }
 
-impl<const N: usize> Analyzer<{N}>
+impl<const N: usize> Analyzer<N>
 where
-    [bool; N]: LengthAtMost32 + Default,
+    [bool; N]: Default,
 {
     /// Creates a new analyzer instance. You can use this instance to analyze
     /// different TMs. You can reuse this as often as you like. All values
@@ -47,7 +43,7 @@ where
     }
 
     /// Main entry point: analyze the given TM.
-    pub fn analyze(&mut self, tm: &Tm<{N}>) -> Outcome {
+    pub fn analyze(&mut self, tm: &Tm<N>) -> Outcome {
         // Before even running the TM (dynamic analysis), we analyze it
         // statically to categorize certain TMs early.
         try_check!(Self::check_immediate_halt(tm));
@@ -61,7 +57,7 @@ where
     /// Static analysis (very fast): checks if the start 0 action is
     /// transitioning to the halt state. In that case the
     #[inline(always)]
-    pub fn check_immediate_halt(tm: &Tm<{N}>) -> Option<Outcome> {
+    pub fn check_immediate_halt(tm: &Tm<N>) -> Option<Outcome> {
         if tm.start_action().will_halt() {
             let wrote_one = tm.start_action().write_value().0;
             return Some(Outcome::ImmediateHalt { wrote_one });
@@ -73,7 +69,7 @@ where
     /// Static analysis (very fast): checks if the first action has the start
     /// state as the next state. In those cases, the TM will just run away in
     /// one direction immediately.
-    pub fn check_simple_elope(tm: &Tm<{N}>) -> Option<Outcome> {
+    pub fn check_simple_elope(tm: &Tm<N>) -> Option<Outcome> {
         if tm.start_action().next_state() == NextState::State(0) {
             return Some(Outcome::SimpleElope);
         }
@@ -84,7 +80,7 @@ where
     /// Static analysis (fast): checks if the TM has a transition to the halt
     /// state at all.
     #[inline(always)]
-    pub fn check_halt_exists(tm: &Tm<{N}>) -> Option<Outcome> {
+    pub fn check_halt_exists(tm: &Tm<N>) -> Option<Outcome> {
         if !tm.states.iter().flat_map(|s| s.actions()).any(|a| a.will_halt()) {
             return Some(Outcome::NoHaltState);
         }
@@ -101,7 +97,7 @@ where
     /// can ignore all `on_1` transitions, meaning that this check will more
     /// likely detect when a TM cannot halt.
     #[inline(never)]
-    pub fn check_halt_reachable(&mut self, tm: &Tm<{N}>) -> Option<Outcome> {
+    pub fn check_halt_reachable(&mut self, tm: &Tm<N>) -> Option<Outcome> {
         self.dfs_stack.clear();
         self.dfs_stack.push(0);
         let mut visited: [bool; N] = array(false);
@@ -161,7 +157,7 @@ where
 
     /// Actually run the TM.
     #[inline(never)]
-    pub fn run_tm(&mut self, tm: &Tm<{N}>) -> Outcome {
+    pub fn run_tm(&mut self, tm: &Tm<N>) -> Outcome {
         self.tape.clear();
         let mut head = CellId(0);
         let mut current_state: u8 = 0;
@@ -231,7 +227,7 @@ where
     }
 }
 
-fn array<T: Copy + Default, const N: usize>(v: T) -> [T; {N}]
+fn array<T: Copy + Default, const N: usize>(v: T) -> [T; N]
 where
     [T; N]: Default,
 {

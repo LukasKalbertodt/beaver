@@ -1,7 +1,6 @@
 //! Defines types to describe a TM.
 
 use std::{
-    array::LengthAtMost32,
     convert::TryInto,
     fmt,
     sync::Arc,
@@ -16,14 +15,14 @@ pub struct Tm<const N: usize> {
     pub states: [State; N],
 }
 
-impl<const N: usize> Tm<{N}> {
+impl<const N: usize> Tm<N> {
     /// Returns the first transition that will be executed (`states[0].on_0`).
     pub fn start_action(&self) -> Action {
         self.states[0].on_0
     }
 }
 
-impl<const N: usize> fmt::Debug for Tm<{N}> {
+impl<const N: usize> fmt::Debug for Tm<N> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_map()
             .entries(self.states.iter().enumerate())
@@ -201,11 +200,7 @@ pub struct AllTmCombinations<const N: usize> {
     remaining: u64,
 }
 
-impl<const N: usize> AllTmCombinations<{N}>
-where
-    [State; N]: LengthAtMost32,
-    [u16; N]: LengthAtMost32,
-{
+impl<const N: usize> AllTmCombinations<N> {
     pub fn new() -> Self {
         // We create vectors of all X, starting with movements and state ids.
         let all_movements = [Move::Left, Move::Right];
@@ -284,8 +279,8 @@ where
     }
 }
 
-impl<const N: usize> Iterator for AllTmCombinations<{N}> {
-    type Item = Tm<{N}>;
+impl<const N: usize> Iterator for AllTmCombinations<N> {
+    type Item = Tm<N>;
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining == 0 {
             return None;
@@ -334,4 +329,4 @@ impl<const N: usize> Iterator for AllTmCombinations<{N}> {
     }
 }
 
-impl<const N: usize> ExactSizeIterator for AllTmCombinations<{N}> {}
+impl<const N: usize> ExactSizeIterator for AllTmCombinations<N> {}

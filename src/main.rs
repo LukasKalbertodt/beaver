@@ -1,8 +1,7 @@
-#![feature(const_generics, const_generic_impls_guard)]
+#![feature(const_generics)]
 #![allow(incomplete_features)] // I know const generics is still buggy...
 
 use std::{
-    array::LengthAtMost32,
     sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
@@ -17,7 +16,7 @@ use crate::{
     cli::Args,
     summary::Summary,
     tape::CellValue,
-    tm::{AllTmCombinations, State},
+    tm::AllTmCombinations,
 };
 
 mod analyze;
@@ -55,12 +54,10 @@ fn main() {
 #[inline(never)]
 fn run<const N: usize>(args: &Args)
 where
-    [State; N]: LengthAtMost32,
-    [u16; N]: LengthAtMost32,
-    [bool; N]: LengthAtMost32 + Default,
+    [bool; N]: Default,
 {
     // Iterator to iterate over all possible TMs.
-    let mut tms = <AllTmCombinations<{N}>>::new();
+    let mut tms = <AllTmCombinations<N>>::new();
     let num_tms = tms.len();
 
     println!("");
@@ -78,7 +75,7 @@ where
     // Create a channel to pass pass the work to the workers. We bound it to
     // three to have always have some work ready, but to not use too much
     // memory.
-    let (s, r) = crossbeam_channel::bounded::<AllTmCombinations<{N}>>(3);
+    let (s, r) = crossbeam_channel::bounded::<AllTmCombinations<N>>(3);
 
     // Create the worker threads
     let num_threads = args.num_threads.unwrap_or_else(|| num_cpus::get() as u32);
@@ -120,7 +117,6 @@ where
     };
     while tms.len() > 0 {
         let job = tms.split_off(chunk_size);
-        // let job = tms.by_ref().take(chunk_size).collect::<Vec<_>>();
         s.send(job).expect("channel unexpectedly disconnected");
     }
 
@@ -139,6 +135,7 @@ where
 
     println!();
     let elapsed = before.elapsed();
+
     // The `as u64` could technically overflow, but 2^64ns = 584 years, so...
     let core_nanos_per_tm = (elapsed.as_nanos() * num_threads as u128) / num_tms as u128;
     let core_time_per_tm = Duration::from_nanos(core_nanos_per_tm as u64);
