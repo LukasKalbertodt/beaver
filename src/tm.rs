@@ -254,24 +254,24 @@ impl<const N: usize> AllTmCombinations<N> {
         } else {
             self.remaining -= num_items;
 
-            // Subtract from `indices`, the base `num_states` N-digit number.
+            // Add `num_items` (as base `num_states` number) to `indices`.
             let num_states = self.all_states.len() as u64;
-            let mut subtract = num_items;
-            let mut i = N - 1;
-            while subtract > 0 {
-                self.indices[i] += (subtract % num_states) as u16;
+            let mut add = num_items;
+            let mut i = N;
+            while add > 0 {
+                // This will never underflow because we made sure `num_items <
+                // self.remaining`.
+                i -= 1;
+
+                self.indices[i] += (add % num_states) as u16;
                 if self.indices[i] >= num_states as u16 {
-                    // Handle overflow: add "carry" to `subtract`
-                    subtract += num_states;
+                    // Handle overflow: add "carry" to `add`
+                    add += num_states;
                     self.indices[i] -= num_states as u16;
                 }
 
                 // Go to the next digit
-                subtract /= num_states;
-
-                // This will never underflow because we made sure `num_items <
-                // self.remaining`.
-                i -= 1;
+                add /= num_states;
             }
         }
 
