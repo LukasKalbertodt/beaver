@@ -1,6 +1,3 @@
-#![feature(const_generics)]
-#![allow(incomplete_features)] // I know const generics is still buggy...
-
 use std::{
     sync::{Arc, Mutex},
     thread,
