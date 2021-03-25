@@ -1,0 +1,26 @@
+name: CI
+
+on: [pull_request, push]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: --deny warnings
+
+jobs:
+  check:
+    name: 'Build & test'
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build
+      run: cargo build
+    - name: Run tests
+      run: cargo test
+
+  style:
+    name: 'Check basic style'
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: 'Style check'
+      run: ./.github/check-basic-style.sh
