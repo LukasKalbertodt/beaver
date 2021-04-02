@@ -8,16 +8,16 @@ This is related to the [Busy Beaver game](https://en.wikipedia.org/wiki/Busy_Bea
 
 **Features**:
 - Nice output, including histogram
-- Fairly fast (on my Notebook, N=4 with its 11 billion TMs runs in ≈5 min)
+- Fairly fast (on a Ryzen 3600, N=4 with its 11 billion TMs runs in ≈1m55s)
 - Static analysis: state graph reachability check
-- Can detect and categorize ≈97% of non-halting TMs
+- Can detect and categorize ≈97% of non-halting TMs (for N=4)
 
 <p align="center">
     <img src=".github/readme-image.png" width="90%"></img>
 </p>
 
 **Potential goals for future development**
-- [ ] Optimize so that `-n4` can run in under one minute (on my notebook)
+- [ ] Optimize
 - [ ] More smart analysis techniques
 - [ ] Print states of certain TMs (e.g. the winning one)
 - [ ] Show trace of the winning TM
