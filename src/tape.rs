@@ -78,35 +78,45 @@ impl Tape {
 
     /// Write a new value into the given cell.
     pub fn write(&mut self, id: CellId, value: CellValue) {
-        // This is a bit sketchy, but it's for the performance! In theory we
-        // want to test `bit_idx < 0 || bit_idx >= self.num_stored_bits()`.
-        // But if we assume that `num_stored_bits` is less than `u64::max / 2`,
-        // i.e. the MSB is not set, then a negative number casted to `u64` will
-        // have the MSB set, thus being larger than `num_stored_bits`.
-        //
-        // `u64::max / 2` bits are `u64::max / 16 ≈ 1.152E+18` bytes or roughly
-        // one million TB.
-        let bit_idx = self.offset + id.0;
-        if (bit_idx as u64) >= self.num_stored_bits() {
-            self.grow(id);
+        // This loop is another interesting hack. We know that the "grow check"
+        // only needs to happen if the written range is extended. To avoid
+        // duplicate comparisons or using temporary bools, we'd like to use
+        // goto here, actually. But since Rust doesn't have goto, this loop is
+        // the next best tool.
+        loop {
+            // Adjust `written_range`.
+            if self.written_range.start > id {
+                self.written_range.start = id;
+            } else if self.written_range.end <= id {
+                self.written_range.end = CellId(id.0 + 1);
+            } else {
+                // If the id is within the written range, we certainly don't
+                // have to grow, so we can skip that check.
+                break;
+            }
+
+            // This is a bit sketchy, but it's for the performance! In theory we
+            // want to test `bit_idx < 0 || bit_idx >= self.num_stored_bits()`.
+            // But if we assume that `num_stored_bits` is less than `u64::max / 2`,
+            // i.e. the MSB is not set, then a negative number casted to `u64` will
+            // have the MSB set, thus being larger than `num_stored_bits`.
+            //
+            // `u64::max / 2` bits are `u64::max / 16 ≈ 1.152E+18` bytes or roughly
+            // one million TB.
+            let bit_idx = self.offset + id.0;
+            if (bit_idx as u64) >= self.num_stored_bits() {
+                self.grow(id);
+            }
+
+            break;
         }
 
-        // At this point we know that the bit we want to access is actually
-        // stored in `data`.
+        // Set the bit as requested. We try to avoid branches here. We do that
+        // by first clearing the specified bit from the target `u64`, then
+        // adding it back IF `value` is set.
         let (bucket_idx, bit_in_bucket) = self.lookup_bucket(id);
-        if value.0 {
-            self.data[bucket_idx] |= 1 << bit_in_bucket;
-        } else {
-            self.data[bucket_idx] &= !(1 << bit_in_bucket);
-        }
-
-        // Adjust `written_range`
-        if self.written_range.start > id {
-            self.written_range.start = id;
-        }
-        if self.written_range.end <= id {
-            self.written_range.end = CellId(id.0 + 1);
-        }
+        self.data[bucket_idx] = (self.data[bucket_idx] & !(1 << bit_in_bucket))
+            | ((value.0 as u64) << bit_in_bucket);
     }
 
     /// Precondition: `self.offset + id.0 < 0 || self.offset + id.0 >= self.num_stored_bits()`
