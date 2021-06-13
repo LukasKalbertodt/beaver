@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 bunt = "0.2.0"
-bytemuck = "1.6"
+bytemuck = { version = "1.6", features = ["derive"] }
 crossbeam-channel = "0.5"
 num_cpus = "1"
 pbr = "1"

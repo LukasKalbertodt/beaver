@@ -82,7 +82,7 @@ where
     pub fn check_halt_exists(tm: &Tm<N>) -> Option<Outcome> {
         use core::arch::x86_64::{_mm_movemask_epi8, _mm_set1_epi8, _mm_cmpeq_epi8, _mm_max_epu8};
 
-        let v = tm.as_m128();
+        let v = *tm.encoded();
         unsafe {
             let mask = _mm_set1_epi8(0b1111_1100u8 as i8);
 
@@ -125,6 +125,8 @@ where
     /// likely detect when a TM cannot halt.
     #[inline(never)]
     pub fn check_halt_reachable(&mut self, tm: &Tm<N>) -> Option<Outcome> {
+        let states = tm.states();
+
         self.dfs_stack.clear();
         self.dfs_stack.push(0);
         let mut visited: [bool; N] = array(false);
@@ -141,7 +143,7 @@ where
             *state_visited = true;
 
             // Check if we could write a 1 from here.
-            let state = &tm.states[state_id as usize];
+            let state = &states[state_id as usize];
             if only_0s && state.on_0.write_value().0 {
                 only_0s = false;
 
@@ -185,6 +187,7 @@ where
     /// Actually run the TM.
     #[inline(never)]
     pub fn run_tm(&mut self, tm: &Tm<N>) -> Outcome {
+        let states = tm.states();
         self.tape.clear();
         let mut head = CellId(0);
         let mut current_state: u8 = 0;
@@ -229,7 +232,7 @@ where
             }
 
             let value = self.tape.get(head);
-            let action = tm.states[current_state as usize].action_for(value);
+            let action = states[current_state as usize].action_for(value);
             self.tape.write(head, action.write_value());
 
             current_state = match action.next_state() {
