@@ -41,6 +41,16 @@ impl<const N: usize> Tm<N> {
     }
 }
 
+impl<const N: usize> PartialEq for Tm<N> {
+    fn eq(&self, other: &Self) -> bool {
+        use core::arch::x86_64::{_mm_movemask_epi8, _mm_cmpeq_epi8};
+
+        unsafe {
+            _mm_movemask_epi8(_mm_cmpeq_epi8(self.encoded, other.encoded)) == 0xFFFF
+        }
+    }
+}
+
 impl<const N: usize> fmt::Debug for Tm<N> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_map()

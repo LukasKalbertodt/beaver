@@ -84,7 +84,7 @@ where
 
                 // Analyze each TM in this batch
                 let mut count = 0;
-                for_all_tms(range.clone(), |tm| {
+                for_all_tms::<_, N>(range.clone(), |tm| {
                     count += 1;
                     let outcome = analyzer.analyze(&tm);
                     if args.print_aborted && outcome.was_aborted() {

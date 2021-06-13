@@ -119,9 +119,9 @@ where
             f(<Tm<N>>::new(tm));
 
             // Increment counter and adjust `tm`.
-            for digit in 0..N {
+            for digit in 0..2 * N {
                 counter[digit] += 1;
-                if counter[digit] < 4 * N as u8|| counter[digit] == 4 * N as u8 + 1 {
+                if counter[digit] < 4 * N as u8 || counter[digit] == 4 * N as u8 + 1 {
                     tm = _mm_add_epi8(tm, consts[digit].one);
                 } else if counter[digit] == 4 * N as u8 {
                     tm = _mm_add_epi8(tm, consts[digit].halt_add);
@@ -143,5 +143,57 @@ where
                 break;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const FULL_RANGE: Range<u64> = 0..u64::max_value();
+
+    fn count<const N: usize>(range: Range<u64>) -> u64
+    where
+        [(); 2 * N]:
+    {
+        let mut count = 0;
+        for_all_tms::<_, N>(range, |_| count += 1);
+        count
+    }
+
+    fn to_vec<const N: usize>(range: Range<u64>) -> Vec<Tm<N>>
+    where
+        [(); 2 * N]:
+    {
+        let mut out = Vec::new();
+        for_all_tms::<_, N>(range, |tm| out.push(tm));
+        out
+    }
+
+    #[test]
+    fn total_count_fits() {
+        assert_eq!(count::<1>(FULL_RANGE), num_machines(1));
+        assert_eq!(count::<2>(FULL_RANGE), num_machines(2));
+        assert_eq!(count::<3>(FULL_RANGE), num_machines(3));
+        // assert_eq!(count::<4>(FULL_RANGE), num_machines(4));
+    }
+
+    #[test]
+    fn single_chunks_equal_full() {
+        fn imp<const N: usize>()
+        where
+            [(); 2 * N]:
+        {
+            let all = to_vec::<N>(FULL_RANGE);
+            for (i, tm) in all.iter().enumerate() {
+                let single = to_vec::<N>(i as u64..i as u64 + 1);
+                assert_eq!(&single, &[*tm]);
+            }
+        }
+
+        imp::<1>();
+        imp::<2>();
+        imp::<3>();
+        // imp::<4>();
     }
 }
