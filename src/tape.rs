@@ -1,10 +1,6 @@
 //! Defines the tape on which TMs are operating.
 
-use std::{
-    cmp::max,
-    mem,
-    ops::Range,
-};
+use std::{cmp::max, convert::TryInto, mem, ops::Range};
 
 
 
@@ -21,7 +17,7 @@ pub struct CellValue(pub bool);
 
 
 type BucketType = u64;
-const BITS_PER_BUCKET: usize = mem::size_of::<BucketType>() * 8;
+const BITS_PER_BUCKET: u64 = mem::size_of::<BucketType>() as u64 * 8;
 
 /// The infinite tape of a TM. The cells are binary and can thus hold the
 /// values '0' or '1'. All cells are initialized to 0.
@@ -54,7 +50,7 @@ impl Tape {
     /// Clears the tape (sets all cells to 0) without deallocating memory.
     pub fn clear(&mut self) {
         self.data.iter_mut().for_each(|b| *b = 0);
-        self.offset = (self.data.len() * BITS_PER_BUCKET) as i64 / 2;
+        self.offset = (self.data.len() as u64 * BITS_PER_BUCKET / 2) as i64;
         self.written_range = CellId(0)..CellId(0);
     }
 
@@ -82,37 +78,17 @@ impl Tape {
 
     /// Write a new value into the given cell.
     pub fn write(&mut self, id: CellId, value: CellValue) {
+        // This is a bit sketchy, but it's for the performance! In theory we
+        // want to test `bit_idx < 0 || bit_idx >= self.num_stored_bits()`.
+        // But if we assume that `num_stored_bits` is less than `u64::max / 2`,
+        // i.e. the MSB is not set, then a negative number casted to `u64` will
+        // have the MSB set, thus being larger than `num_stored_bits`.
+        //
+        // `u64::max / 2` bits are `u64::max / 16 ≈ 1.152E+18` bytes or roughly
+        // one million TB.
         let bit_idx = self.offset + id.0;
-        let stored_bits = self.data.len() * BITS_PER_BUCKET;
-        let grow_by_bits = match () {
-            // Just add 2 for some extra room.
-            () if bit_idx < 0 => Some(-bit_idx as usize + 2),
-            () if bit_idx as usize >= stored_bits => Some(bit_idx as usize - stored_bits + 2),
-            () => None,
-        };
-
-        // Check if we need to grow.
-        if let Some(grow_by_bits) = grow_by_bits {
-            // Make sure we at least double our capacity to avoid repeated
-            // reallocations.
-            let grow_by_bits = max(grow_by_bits, stored_bits);
-
-            // Add 1 to compensate for rounding down of integer division.
-            let grow_by_buckets = (grow_by_bits / BITS_PER_BUCKET) + 1;
-
-            let mut new_data = vec![0; self.data.len() + grow_by_buckets].into_boxed_slice();
-
-            if bit_idx < 0 {
-                // We grew left
-                new_data[grow_by_buckets..grow_by_buckets + self.data.len()]
-                    .copy_from_slice(&self.data);
-                self.offset += (grow_by_buckets * BITS_PER_BUCKET) as i64;
-            } else {
-                // We grew right
-                new_data[0..self.data.len()].copy_from_slice(&self.data);
-            }
-
-            self.data = new_data;
+        if (bit_idx as u64) >= self.num_stored_bits() {
+            self.grow(id);
         }
 
         // At this point we know that the bit we want to access is actually
@@ -133,10 +109,56 @@ impl Tape {
         }
     }
 
+    /// Precondition: `self.offset + id.0 < 0 || self.offset + id.0 >= self.num_stored_bits()`
+    #[inline(never)]
+    #[cold]
+    fn grow(&mut self, id: CellId) {
+        let bit_idx = self.offset + id.0;
+        let stored_bits = self.num_stored_bits();
+        let grow_by_bits = if bit_idx < 0 {
+            -bit_idx as u64
+        } else {
+            bit_idx as u64 - stored_bits
+        };
+
+        // Make sure we at least double our capacity to avoid repeated
+        // reallocations.
+        let grow_by_bits = max(grow_by_bits, stored_bits);
+
+        // Add 1 to compensate for rounding down of integer division.
+        let grow_by_buckets = (grow_by_bits / BITS_PER_BUCKET as u64) + 1;
+        let grow_by_buckets_usize: usize = grow_by_buckets.try_into()
+            .expect("allocation too large");
+        let new_len =  self.data.len() + grow_by_buckets_usize;
+
+        let mut new_data = vec![0; new_len].into_boxed_slice();
+
+        if bit_idx < 0 {
+            // We grew left
+            new_data[grow_by_buckets_usize..new_len].copy_from_slice(&self.data);
+            self.offset += (grow_by_buckets * BITS_PER_BUCKET) as i64;
+        } else {
+            // We grew right
+            new_data[0..self.data.len()].copy_from_slice(&self.data);
+        }
+
+        self.data = new_data;
+
+        if self.num_stored_bits() >= u64::max_value() / 2 {
+            // This makes sure the sketchy `if` in `write` works.
+            panic!("Tape only supports up to 2^64 / 2 stored bits");
+        }
+    }
+
+    fn num_stored_bits(&self) -> u64 {
+        self.data.len() as u64 * BITS_PER_BUCKET as u64
+    }
+
+    /// Precondition: `id` must be in bounds.
     fn lookup_bucket(&self, id: CellId) -> (usize, usize) {
-        let bit_idx = (self.offset + id.0) as usize;
-        let bucket_idx = bit_idx / BITS_PER_BUCKET;
-        let bit_in_bucket = bit_idx % BITS_PER_BUCKET;
+        let bit_idx = (self.offset + id.0) as u64;
+        let bucket_idx = (bit_idx / BITS_PER_BUCKET) as usize;
+        let bit_in_bucket = (bit_idx % BITS_PER_BUCKET) as usize;
 
         (bucket_idx, bit_in_bucket)
     }
