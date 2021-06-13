@@ -91,6 +91,7 @@ impl Summary {
                 if wrote_one {
                     self.handle_high_score(1, 1);
                 }
+                *self.step_histogram.entry(1).or_insert(0) += 1;
             }
             Outcome::AbortedAfterMaxSteps => self.num_aborted_after_max_steps += 1,
             Outcome::SimpleElope => self.num_simple_elope += 1,
@@ -239,7 +240,7 @@ impl Summary {
             }
         }
 
-        for steps in 2..histogram_cutoff {
+        for steps in 1..histogram_cutoff {
             lines[..histogram_height - 1].iter_mut().for_each(|l| l.push(' '));
             lines[histogram_height - 1].push('▁');
 
@@ -275,13 +276,13 @@ impl Summary {
         lines.iter().for_each(|l| println!("{}", l));
 
         print!("    steps: ");
-        for steps in 2..histogram_cutoff {
+        for steps in 1..histogram_cutoff {
             print!("{: >3}", steps);
         }
         println!();
 
         print!("    count: ");
-        for steps in 2..histogram_cutoff {
+        for steps in 1..histogram_cutoff {
             let count = self.step_histogram.get(&steps).copied().unwrap_or(0);
             if count < 100 {
                 print!(" {: >2}", count);
