@@ -33,6 +33,7 @@ name = "beaver"
 version = "0.1.0"
 dependencies = [
  "bunt",
+ "bytemuck",
  "crossbeam-channel",
  "num_cpus",
  "pbr",
@@ -65,6 +66,12 @@ dependencies = [
  "quote",
  "unicode-xid",
 ]
+
+[[package]]
+name = "bytemuck"
+version = "1.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d369ccb80791bfda25cfddab2e2f86533ed9fd1eeda20a5ecb03701f653d0a7"
 
 [[package]]
 name = "cfg-if"

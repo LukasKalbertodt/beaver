@@ -5,6 +5,7 @@ use std::{
     fmt,
     sync::Arc,
 };
+use core::arch::x86_64::__m128i;
 
 use crate::CellValue;
 
@@ -19,6 +20,19 @@ impl<const N: usize> Tm<N> {
     /// Returns the first transition that will be executed (`states[0].on_0`).
     pub fn start_action(&self) -> Action {
         self.states[0].on_0
+    }
+
+    pub fn as_m128(&self) -> __m128i {
+        use core::arch::x86_64::_mm_load_si128;
+
+        let mut data: [__m128i; 1] = bytemuck::Zeroable::zeroed();
+        let bytes = bytemuck::bytes_of_mut(&mut data);
+        for (i, state) in self.states.iter().enumerate() {
+            bytes[i * 2] = state.on_0.encoded;
+            bytes[i * 2 + 1] = state.on_1.encoded;
+        }
+
+        unsafe { _mm_load_si128(data.as_ptr()) }
     }
 }
 

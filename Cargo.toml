@@ -6,8 +6,9 @@ edition = "2018"
 
 
 [dependencies]
+bunt = "0.2.0"
+bytemuck = "1.6"
 crossbeam-channel = "0.5"
 num_cpus = "1"
 pbr = "1"
 structopt = "0.3"
-bunt = "0.2.0"

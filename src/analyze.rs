@@ -79,10 +79,37 @@ where
 
     /// Static analysis (fast): checks if the TM has a transition to the halt
     /// state at all.
-    #[inline(always)]
     pub fn check_halt_exists(tm: &Tm<N>) -> Option<Outcome> {
-        if !tm.states.iter().flat_map(|s| s.actions()).any(|a| a.will_halt()) {
-            return Some(Outcome::NoHaltState);
+        use core::arch::x86_64::{_mm_movemask_epi8, _mm_set1_epi8, _mm_cmpeq_epi8, _mm_max_epu8};
+
+        let v = tm.as_m128();
+        unsafe {
+            let mask = _mm_set1_epi8(0b1111_1100u8 as i8);
+
+            // This first creates the maximum of v and mask, byte by byte. And
+            // then compares to `v`. In the end, a byte in `compared` is `0xFF`
+            // if the corresponding byte in v is equal to the max of v and
+            // mask. This means that that byte in v was at least 1111_1100
+            // large, meaning it contained the halt state. Otherwise the result
+            // byte is 0.
+            let compared = _mm_cmpeq_epi8(_mm_max_epu8(v, mask), v);
+
+            // This compares v and mask byte by byte. If `v[i] < mask[i]`, the
+            // result at that byte is `0xFF`, 0 otherwise. For unused bytes
+            // (where no valid data is stored), `as_m128` returns zeroes. So
+            // for those, the comparison is always true, always resulting in
+            // `0xFF`.
+            //
+            // Note: the operands are in a strange order. They are swapped
+            // basically. This is unfortunately intentional.
+            // let compared = _mm_cmplt_epi8(mask, v);
+
+            // With this, we extract the most significant bit of each byte. If
+            // all of those are 0, that means there was no transition to the
+            // halt state.
+            if _mm_movemask_epi8(compared) == 0 {
+                return Some(Outcome::NoHaltState);
+            }
         }
 
         None
