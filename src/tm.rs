@@ -5,7 +5,7 @@ use std::{
     fmt,
     marker::PhantomData,
 };
-use core::arch::x86_64::__m128i;
+use core::arch::x86_64::*;
 use bytemuck::{Pod, Zeroable};
 
 use crate::CellValue;
@@ -32,7 +32,9 @@ impl<const N: usize> Tm<N> {
 
     /// Returns the first transition that will be executed (`states[0].on_0`).
     pub fn start_action(&self) -> Action {
-        self.states()[0].on_0
+        Action {
+            encoded: unsafe { _mm_cvtsi128_si32(self.encoded) } as u8,
+        }
     }
 
     pub fn states(&self) -> [State; N] {
@@ -43,8 +45,6 @@ impl<const N: usize> Tm<N> {
 
 impl<const N: usize> PartialEq for Tm<N> {
     fn eq(&self, other: &Self) -> bool {
-        use core::arch::x86_64::{_mm_movemask_epi8, _mm_cmpeq_epi8};
-
         unsafe {
             _mm_movemask_epi8(_mm_cmpeq_epi8(self.encoded, other.encoded)) == 0xFFFF
         }
