@@ -12,7 +12,7 @@ pub struct Args {
 
     /// Number of steps after which TMs are stopped.
     #[structopt(long, default_value = "200")]
-    pub max_steps: u64,
+    pub max_steps: u32,
 
     /// If specified, the progress bar is not shown.
     #[structopt(long)]
@@ -34,7 +34,7 @@ pub struct Args {
     /// Set the max number of steps included in the histogram that's printed in
     /// the end.
     #[structopt(long, default_value = "30")]
-    pub histogram_cutoff: u64,
+    pub histogram_cutoff: u32,
 
     /// If specified, the histogram is now shown.
     #[structopt(long)]

@@ -221,7 +221,9 @@ where
 
 
         let r = self.tape.written_range();
-        let ones = (r.start.0..r.end.0).filter(|&id| self.tape.get(CellId(id)).0).count() as u64;
+        let ones = (r.start.0..r.end.0)
+            .filter(|&id| self.tape.get(CellId(id)).0)
+            .count() as u32;
 
         Outcome::Halted { steps, ones }
     }

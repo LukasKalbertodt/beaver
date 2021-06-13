@@ -14,15 +14,17 @@ pub struct Summary {
     num_tms: u64,
 
     /// The most number 1s written.
-    high_score: u64,
+    high_score: u32,
+
     /// The number of TMs that have written `high_score` many 1s.
     num_winners: u64,
+
     /// The fewest number of steps a winner required to write `high_score` many
     /// 1s.
-    fewest_winner_steps: u64,
+    fewest_winner_steps: u32,
 
     /// Records how many TMs finished after how many steps.
-    step_histogram: HashMap<u64, u64>,
+    step_histogram: HashMap<u32, u64>,
 
     /// `Outcome::Halted`
     num_halted: u64,
@@ -64,7 +66,7 @@ impl Summary {
         }
     }
 
-    fn handle_high_score(&mut self, ones: u64, steps: u64) {
+    fn handle_high_score(&mut self, ones: u32, steps: u32) {
         if ones > self.high_score {
             self.high_score = ones;
             self.num_winners = 1;

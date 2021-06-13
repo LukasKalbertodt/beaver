@@ -155,8 +155,8 @@ pub enum Outcome {
     // ----- Outcomes from actually running the TM ---------------------------
     /// The TM ran and halted.
     Halted {
-        steps: u64,
-        ones: u64,
+        steps: u32,
+        ones: u32,
     },
 
     /// The TM ran but was aborted after the maximum number of steps.
