@@ -2,6 +2,10 @@ use std::ops::Range;
 
 use crate::tm::Tm;
 
+#[cfg(test)]
+#[macro_use]
+mod tests;
+
 mod all;
 
 pub use self::{

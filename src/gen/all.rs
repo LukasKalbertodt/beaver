@@ -64,3 +64,8 @@ impl<const N: usize> TmGenerator<N> for All<N> {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    gen_tests!(All);
+}
