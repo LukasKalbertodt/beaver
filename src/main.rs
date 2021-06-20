@@ -13,8 +13,6 @@ mod outcome;
 mod tape;
 mod tm;
 
-pub(crate) use outcome::Outcome;
-
 
 fn main() {
     let args = Args::from_args();

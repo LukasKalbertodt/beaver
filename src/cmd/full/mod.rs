@@ -131,8 +131,7 @@ where
                 let mut count = 0;
                 G::for_range(range.clone(), |tm| {
                     count += 1;
-                    let outcome = analyzer.analyze(tm);
-                    summary.handle_outcome(outcome);
+                    analyzer.analyze(tm, &mut summary);
                 });
 
                 // Advance progress bar

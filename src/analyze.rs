@@ -1,8 +1,4 @@
-use crate::{
-    Outcome,
-    tape::{CellId, Tape},
-    tm::{Move, NextState, Tm},
-};
+use crate::{outcome::OutcomeSink, tape::{CellId, Tape}, tm::{Move, NextState, Tm}};
 
 
 /// Holds data used by different analysis operations. This is just a cache so
@@ -15,15 +11,6 @@ pub struct Analyzer<const N: usize> {
 
     /// The actual TM tape used by `run_tm`.
     tape: Tape,
-}
-
-macro_rules! try_check {
-    ($e:expr) => {
-        match $e {
-            None => {}
-            Some(outcome) => return outcome,
-        }
-    };
 }
 
 impl<const N: usize> Analyzer<N>
@@ -43,43 +30,53 @@ where
     }
 
     /// Main entry point: analyze the given TM.
-    pub fn analyze(&mut self, tm: Tm<N>) -> Outcome {
+    pub fn analyze(&mut self, tm: Tm<N>, sink: &mut impl OutcomeSink) {
+        macro_rules! try_check {
+            ($e:expr) => {
+                if $e {
+                    return;
+                }
+            };
+        }
+
         // Before even running the TM (dynamic analysis), we analyze it
         // statically to categorize certain TMs early.
-        try_check!(Self::check_immediate_halt(tm));
-        try_check!(Self::check_simple_elope(tm));
-        try_check!(Self::check_halt_exists(tm));
-        try_check!(self.check_halt_reachable(tm));
+        try_check!(Self::check_immediate_halt(tm, sink));
+        try_check!(Self::check_simple_elope(tm, sink));
+        try_check!(Self::check_halt_exists(tm, sink));
+        try_check!(self.check_halt_reachable(tm, sink));
 
-        self.run_tm(tm)
+        self.run_tm(tm, sink)
     }
 
     /// Static analysis (very fast): checks if the start 0 action is
     /// transitioning to the halt state. In that case the
     #[inline(always)]
-    pub fn check_immediate_halt(tm: Tm<N>) -> Option<Outcome> {
+    pub fn check_immediate_halt(tm: Tm<N>, sink: &mut impl OutcomeSink) -> bool {
         if tm.start_action().will_halt() {
             let wrote_one = tm.start_action().write_value().0;
-            return Some(Outcome::ImmediateHalt { wrote_one });
+            sink.report_immediate_halt(wrote_one);
+            return true;
         }
 
-        None
+        false
     }
 
     /// Static analysis (very fast): checks if the first action has the start
     /// state as the next state. In those cases, the TM will just run away in
     /// one direction immediately.
-    pub fn check_simple_elope(tm: Tm<N>) -> Option<Outcome> {
+    pub fn check_simple_elope(tm: Tm<N>, sink: &mut impl OutcomeSink) -> bool {
         if tm.start_action().next_state() == NextState::State(0) {
-            return Some(Outcome::SimpleElope);
+            sink.report_simple_elope();
+            return true
         }
 
-        None
+        false
     }
 
     /// Static analysis (fast): checks if the TM has a transition to the halt
     /// state at all.
-    pub fn check_halt_exists(tm: Tm<N>) -> Option<Outcome> {
+    pub fn check_halt_exists(tm: Tm<N>, sink: &mut impl OutcomeSink) -> bool {
         /// This is a helper to create a bitmask by repeating a 5 bit pattern
         /// N * 2 times.
         const fn make_repeating_mask<const N: usize>(pattern: u8) -> u64 {
@@ -159,10 +156,11 @@ where
         let overflow = added & !state_mask;
 
         if overflow == 0 {
-            return Some(Outcome::NoHaltState);
+            sink.report_no_halt_transition();
+            return true;
         }
 
-        None
+        false
     }
 
     /// Static analysis (slower): check if the halt state can be reached via
@@ -174,7 +172,7 @@ where
     /// can ignore all `on_1` transitions, meaning that this check will more
     /// likely detect when a TM cannot halt.
     #[inline(never)]
-    pub fn check_halt_reachable(&mut self, tm: Tm<N>) -> Option<Outcome> {
+    pub fn check_halt_reachable(&mut self, tm: Tm<N>, sink: &mut impl OutcomeSink) -> bool {
         self.dfs_stack.clear();
         self.dfs_stack.push(0);
         let mut visited: [bool; N] = array(false);
@@ -226,15 +224,16 @@ where
         }
 
         if !reached_halt {
-            return Some(Outcome::HaltStateNotReachable);
+            sink.report_halt_state_not_reachable();
+            return true;
         }
 
-        None
+        false
     }
 
     /// Actually run the TM.
     #[inline(never)]
-    pub fn run_tm(&mut self, tm: Tm<N>) -> Outcome {
+    pub fn run_tm(&mut self, tm: Tm<N>, sink: &mut impl OutcomeSink) {
         self.tape.clear();
         let mut head = CellId(0);
         let mut current_state: u8 = 0;
@@ -268,7 +267,8 @@ where
                 running_away = true;
                 let visited_state = &mut visited_during_run_away[current_state as usize];
                 if *visited_state {
-                    return Outcome::RunAwayDetected;
+                    sink.report_run_away();
+                    return;
                 } else {
                     *visited_state = true;
                 }
@@ -292,7 +292,8 @@ where
             }
 
             if steps == self.max_steps {
-                return Outcome::AbortedAfterMaxSteps;
+                sink.report_aborted_after_max_steps();
+                return;
             }
         }
 
@@ -302,7 +303,7 @@ where
             .filter(|&id| self.tape.get(CellId(id)).0)
             .count() as u32;
 
-        Outcome::Halted { steps, ones }
+        sink.report_halted(steps, ones);
     }
 }
 

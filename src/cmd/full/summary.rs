@@ -3,14 +3,11 @@ use std::{
     collections::HashMap,
 };
 
-use crate::Outcome;
+use crate::outcome::OutcomeSink;
 
 
 
 pub struct Summary {
-    /// The total number of TMs.
-    num_tms: u64,
-
     /// The most number 1s written.
     high_score: u32,
 
@@ -37,19 +34,55 @@ pub struct Summary {
     num_simple_elope: u64,
 
     /// `Outcome::NoHaltState`
-    num_no_halt_state: u64,
+    num_no_halt_transition: u64,
 
     /// `Outcome::HaltStateNotReachable`
     num_halt_unreachable: u64,
 
     /// `Outcome::RunAwayDetected` (dynamic analysis)
-    num_runaway_dyn: u64,
+    num_runaway: u64,
+}
+
+impl OutcomeSink for Summary {
+    fn report_halted(&mut self, num_steps: u32, num_ones: u32) {
+        self.num_halted += 1;
+        self.handle_high_score(num_ones, num_steps);
+
+        *self.step_histogram.entry(num_steps).or_insert(0) += 1;
+    }
+
+    fn report_immediate_halt(&mut self, wrote_one: bool) {
+        self.num_immediate_halt += 1;
+        if wrote_one {
+            self.handle_high_score(1, 1);
+        }
+        *self.step_histogram.entry(1).or_insert(0) += 1;
+    }
+
+    fn report_no_halt_transition(&mut self) {
+        self.num_no_halt_transition += 1
+    }
+
+    fn report_simple_elope(&mut self) {
+        self.num_simple_elope += 1;
+    }
+
+    fn report_halt_state_not_reachable(&mut self) {
+        self.num_halt_unreachable += 1
+    }
+
+    fn report_run_away(&mut self) {
+        self.num_runaway += 1
+    }
+
+    fn report_aborted_after_max_steps(&mut self) {
+        self.num_aborted_after_max_steps += 1
+    }
 }
 
 impl Summary {
     pub fn new() -> Self {
         Self {
-            num_tms: 0,
             high_score: 0,
             num_winners: 0,
             fewest_winner_steps: 0,
@@ -58,9 +91,9 @@ impl Summary {
             num_aborted_after_max_steps: 0,
             num_immediate_halt: 0,
             num_simple_elope: 0,
-            num_no_halt_state: 0,
+            num_no_halt_transition: 0,
             num_halt_unreachable: 0,
-            num_runaway_dyn: 0,
+            num_runaway: 0,
         }
     }
 
@@ -75,30 +108,6 @@ impl Summary {
         }
     }
 
-    pub fn handle_outcome(&mut self, outcome: Outcome) {
-        self.num_tms += 1;
-        match outcome {
-            Outcome::Halted { steps, ones } => {
-                self.num_halted += 1;
-                self.handle_high_score(ones, steps);
-
-                *self.step_histogram.entry(steps).or_insert(0) += 1;
-            }
-            Outcome::ImmediateHalt { wrote_one } => {
-                self.num_immediate_halt += 1;
-                if wrote_one {
-                    self.handle_high_score(1, 1);
-                }
-                *self.step_histogram.entry(1).or_insert(0) += 1;
-            }
-            Outcome::AbortedAfterMaxSteps => self.num_aborted_after_max_steps += 1,
-            Outcome::SimpleElope => self.num_simple_elope += 1,
-            Outcome::NoHaltState => self.num_no_halt_state += 1,
-            Outcome::HaltStateNotReachable => self.num_halt_unreachable += 1,
-            Outcome::RunAwayDetected => self.num_runaway_dyn += 1,
-        }
-    }
-
     pub fn add(&mut self, other: Summary) {
         if self.high_score < other.high_score {
             self.high_score = other.high_score;
@@ -109,22 +118,31 @@ impl Summary {
             self.fewest_winner_steps = min(self.fewest_winner_steps, other.fewest_winner_steps);
         }
 
-        self.num_tms += other.num_tms;
         self.num_halted += other.num_halted;
         self.num_aborted_after_max_steps += other.num_aborted_after_max_steps;
         self.num_immediate_halt += other.num_immediate_halt;
         self.num_simple_elope += other.num_simple_elope;
-        self.num_no_halt_state += other.num_no_halt_state;
+        self.num_no_halt_transition += other.num_no_halt_transition;
         self.num_halt_unreachable += other.num_halt_unreachable;
-        self.num_runaway_dyn += other.num_runaway_dyn;
+        self.num_runaway += other.num_runaway;
 
         for (steps, count) in &other.step_histogram {
             *self.step_histogram.entry(*steps).or_insert(0) += count;
         }
     }
 
+    fn num_total_tms(&self) -> u64 {
+        self.num_halted
+            + self.num_aborted_after_max_steps
+            + self.num_immediate_halt
+            + self.num_simple_elope
+            + self.num_no_halt_transition
+            + self.num_halt_unreachable
+            + self.num_runaway
+    }
+
     fn percent(&self, v: u64) -> String {
-        let percent = 100.0 * (v as f64) / (self.num_tms as f64);
+        let percent = 100.0 * (v as f64) / (self.num_total_tms() as f64);
         format!("{:.2}%", percent)
     }
 
@@ -132,9 +150,9 @@ impl Summary {
         let halted_non_high_score = (self.num_halted + self.num_immediate_halt) - self.num_winners;
         let num_non_terminated = self.num_aborted_after_max_steps
             + self.num_simple_elope
-            + self.num_no_halt_state
+            + self.num_no_halt_transition
             + self.num_halt_unreachable
-            + self.num_runaway_dyn;
+            + self.num_runaway;
 
         bunt::println!("{$blue+bold}▸ Results:{/$}");
 
@@ -177,8 +195,8 @@ impl Summary {
         bunt::println!(
             "  - {[magenta+bold]} ({[magenta+bold]}) did not contain a transition \
                 to the halt state",
-            self.num_no_halt_state,
-            self.percent(self.num_no_halt_state),
+            self.num_no_halt_transition,
+            self.percent(self.num_no_halt_transition),
         );
         bunt::println!(
             "  - {[magenta+bold]} ({[magenta+bold]}) statically could not reach the halt state",
@@ -187,8 +205,8 @@ impl Summary {
         );
         bunt::println!(
             "  - {[magenta+bold]} ({[magenta+bold]}) were caught in a run-away loop",
-            self.num_runaway_dyn,
-            self.percent(self.num_runaway_dyn),
+            self.num_runaway,
+            self.percent(self.num_runaway),
         );
         bunt::println!(
             "  - {[red+bold]} ({[red+bold]}) were aborted after the maximum number of steps ({})",
@@ -203,9 +221,9 @@ impl Summary {
             halted_non_high_score,
             self.num_immediate_halt,
             self.num_simple_elope,
-            self.num_no_halt_state,
+            self.num_no_halt_transition,
             self.num_halt_unreachable,
-            self.num_runaway_dyn,
+            self.num_runaway,
             self.num_aborted_after_max_steps,
         ]);
         println!("Hint: the greatest common denominator of all these numbers is {}.", gcd);
