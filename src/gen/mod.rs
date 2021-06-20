@@ -6,10 +6,10 @@ use crate::tm::Tm;
 #[macro_use]
 mod tests;
 
-mod all;
+mod simple;
 
 pub use self::{
-    all::All,
+    simple::{All, NoSymmetries, Optimized},
 };
 
 /// Something that can generate N state Turing machines.

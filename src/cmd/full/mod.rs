@@ -1,9 +1,9 @@
 use anyhow::Result;
-use std::{cmp::min, ops::Range, sync::{Arc, Mutex}, thread, time::{Duration, Instant}};
+use std::{cmp::min, ops::Range, str::FromStr, sync::{Arc, Mutex}, thread, time::{Duration, Instant}};
 use structopt::StructOpt;
 use pbr::ProgressBar;
 
-use crate::{SharedArgs, analyze::Analyzer, gen::{All, TmGenerator}};
+use crate::{SharedArgs, analyze::Analyzer, gen::{All, NoSymmetries, Optimized, TmGenerator}};
 
 mod summary;
 
@@ -14,6 +14,9 @@ use self::summary::Summary;
 pub struct Args {
     #[structopt(flatten)]
     shared: SharedArgs,
+
+    #[structopt(short, long, default_value = "optimized")]
+    generator: Generator,
 
     /// If specified, the progress bar is not shown.
     #[structopt(long)]
@@ -37,15 +40,45 @@ pub struct Args {
     pub hide_histogram: bool,
 }
 
+#[derive(Debug, Clone)]
+enum Generator {
+    All,
+    NoSymmetries,
+    Optimized,
+}
+
+impl FromStr for Generator {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "all" => Ok(Self::All),
+            "no-symmetries" => Ok(Self::NoSymmetries),
+            "optimized" => Ok(Self::Optimized),
+            _ => Err("invalid value for 'generator'"),
+        }
+    }
+}
+
 
 pub(crate) fn run(args: Args) -> Result<()> {
+    macro_rules! dispatch_generator {
+        ($n:expr) => {
+            match args.generator {
+                Generator::All => do_run::<All<$n>, $n>(args),
+                Generator::NoSymmetries => do_run::<NoSymmetries<$n>, $n>(args),
+                Generator::Optimized => do_run::<Optimized<$n>, $n>(args),
+            }
+        };
+    }
+
     match args.shared.n {
-        1 => do_run::<All<1>, 1>(args),
-        2 => do_run::<All<2>, 2>(args),
-        3 => do_run::<All<3>, 3>(args),
-        4 => do_run::<All<4>, 4>(args),
-        5 => do_run::<All<5>, 5>(args),
-        6 => do_run::<All<6>, 6>(args),
+        1 => dispatch_generator!(1),
+        2 => dispatch_generator!(2),
+        3 => dispatch_generator!(3),
+        4 => dispatch_generator!(4),
+        5 => dispatch_generator!(5),
+        6 => dispatch_generator!(6),
         _ => panic!("invalid value for n: argument parsing should catch this"),
     }
 

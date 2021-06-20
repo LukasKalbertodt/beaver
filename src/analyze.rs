@@ -43,7 +43,6 @@ where
     }
 
     /// Main entry point: analyze the given TM.
-    #[inline(never)]
     pub fn analyze(&mut self, tm: Tm<N>) -> Outcome {
         // Before even running the TM (dynamic analysis), we analyze it
         // statically to categorize certain TMs early.
