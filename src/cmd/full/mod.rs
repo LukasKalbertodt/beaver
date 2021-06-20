@@ -144,11 +144,15 @@ where
         })
     }).collect::<Vec<_>>();
 
+    // So in theory, a very large number is best for performance. BUT the
+    // progress bar only changes when a whole chunk is done. So for super slow
+    // PCs, or debug builds, or runs with lots of debug output, or stuff like
+    // that -- we want the progress bar to still be useful.
     let chunk_size = match N {
         1 => 1,
-        2 => 1000,
-        3 => 10_000,
-        _ => 100_000,
+        2 => 500,
+        3 => 50_000,
+        _ => 1_000_000,
     };
 
     for start in (0..num_tms).step_by(chunk_size) {
