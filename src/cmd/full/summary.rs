@@ -197,6 +197,28 @@ impl Summary {
             args.shared.max_steps,
         );
 
+        println!();
+        let gcd = gcd(&[
+            self.num_winners,
+            halted_non_high_score,
+            self.num_immediate_halt,
+            self.num_simple_elope,
+            self.num_no_halt_state,
+            self.num_halt_unreachable,
+            self.num_runaway_dyn,
+            self.num_aborted_after_max_steps,
+        ]);
+        println!("Hint: the greatest common denominator of all these numbers is {}.", gcd);
+        if gcd == 1 {
+            println!("This means the chosen generator does not generate duplicate/equivalent \
+                TMs. That's good!");
+        } else {
+            println!("This means the chosen generator generates {}-tuples of TMs that are \
+                equivalent to one another.", gcd);
+            println!("A better generator could speed this up by eleminating duplicate TMs.");
+        };
+        println!();
+
         if !args.hide_histogram {
             println!();
             println!();
@@ -290,4 +312,18 @@ impl Summary {
         }
         println!();
     }
+}
+
+/// Returns the greatest common denominator of all given numbers.
+fn gcd(nums: &[u64]) -> u64 {
+    let mut gdc = nums[0];
+    for mut n in nums[1..].iter().copied() {
+        while n > 0 {
+            let tmp = n;
+            n = gdc % n;
+            gdc = tmp;
+        }
+    }
+
+    gdc
 }
