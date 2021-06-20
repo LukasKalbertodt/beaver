@@ -50,7 +50,7 @@ where
         try_check!(Self::check_immediate_halt(tm));
         try_check!(Self::check_simple_elope(tm));
         try_check!(Self::check_halt_exists(tm));
-        // try_check!(self.check_halt_reachable(tm));
+        try_check!(self.check_halt_reachable(tm));
 
         self.run_tm(tm)
     }
@@ -159,74 +159,72 @@ where
         None
     }
 
-    // /// Static analysis (slower): check if the halt state can be reached via
-    // /// the state graph.
-    // ///
-    // /// We do that by performing a depth-first search over the TM's states
-    // /// (which form a graph). We use one additional trick: we first check if we
-    // /// can reach a transition that can write a `1`. If that's not the case, we
-    // /// can ignore all `on_1` transitions, meaning that this check will more
-    // /// likely detect when a TM cannot halt.
-    // #[inline(never)]
-    // pub fn check_halt_reachable(&mut self, tm: Tm<N>) -> Option<Outcome> {
-    //     let states = tm.states();
+    /// Static analysis (slower): check if the halt state can be reached via
+    /// the state graph.
+    ///
+    /// We do that by performing a depth-first search over the TM's states
+    /// (which form a graph). We use one additional trick: we first check if we
+    /// can reach a transition that can write a `1`. If that's not the case, we
+    /// can ignore all `on_1` transitions, meaning that this check will more
+    /// likely detect when a TM cannot halt.
+    #[inline(never)]
+    pub fn check_halt_reachable(&mut self, tm: Tm<N>) -> Option<Outcome> {
+        self.dfs_stack.clear();
+        self.dfs_stack.push(0);
+        let mut visited: [bool; N] = array(false);
 
-    //     self.dfs_stack.clear();
-    //     self.dfs_stack.push(0);
-    //     let mut visited: [bool; N] = array(false);
+        // Stays `true` until we encounter an action that actually writes a 1.
+        let mut only_0s = true;
 
-    //     // Stays `true` until we encounter an action that actually writes a 1.
-    //     let mut only_0s = true;
+        let mut reached_halt = false;
+        'outer: while let Some(state_id) = self.dfs_stack.pop() {
+            let state_visited = &mut visited[state_id as usize];
+            if *state_visited {
+                continue;
+            }
+            *state_visited = true;
 
-    //     let mut reached_halt = false;
-    //     'outer: while let Some(state_id) = self.dfs_stack.pop() {
-    //         let state_visited = &mut visited[state_id as usize];
-    //         if *state_visited {
-    //             continue;
-    //         }
-    //         *state_visited = true;
+            // Check if we could write a 1 from here.
+            let state = tm.state(state_id);
+            if only_0s && state.on_0().write_value().0 {
+                only_0s = false;
 
-    //         // Check if we could write a 1 from here.
-    //         let state = &states[state_id as usize];
-    //         if only_0s && state.on_0.write_value().0 {
-    //             only_0s = false;
+                // We have to reset the search here, because we ignored `on_1`
+                // transitions so far. But since we can encounter 1s now, we have
+                // to reconsider them again.
+                self.dfs_stack.clear();
+                self.dfs_stack.push(0);
+                visited = array(false);
+            }
 
-    //             // We have to reset the search here, because we ignored `on_1`
-    //             // transitions so far. But since we can encounter 1s now, we have
-    //             // to reconsider them again.
-    //             self.dfs_stack.clear();
-    //             self.dfs_stack.push(0);
-    //             visited = array(false);
-    //         }
+            macro_rules! check_state {
+                ($action:expr) => {
+                    match $action.next_state() {
+                        NextState::HaltState => {
+                            reached_halt = true;
+                            break 'outer;
+                        }
+                        NextState::State(v) => {
+                            self.dfs_stack.push(v);
+                        }
+                    }
+                };
+            }
 
-    //         macro_rules! check_state {
-    //             ($action:expr) => {
-    //                 match $action.next_state() {
-    //                     NextState::HaltState => {
-    //                         reached_halt = true;
-    //                         break 'outer;
-    //                     }
-    //                     NextState::State(v) => {
-    //                         self.dfs_stack.push(v);
-    //                     }
-    //                 }
-    //             };
-    //         }
+            // If we haven't had the chance to write a 1 yet, we can ignore the
+            // `on_1` transition.
+            check_state!(state.on_0());
+            if !only_0s {
+                check_state!(state.on_1());
+            }
+        }
 
-    //         // If we haven't had the chance to write a 1 yet, we can ignore the
-    //         // `on_1` transition.
-    //         check_state!(state.on_0);
-    //         if !only_0s {
-    //             check_state!(state.on_1);
-    //         }
-    //     }
+        if !reached_halt {
+            return Some(Outcome::HaltStateNotReachable);
+        }
 
-    //     if !reached_halt {
-    //         return Some(Outcome::HaltStateNotReachable);
-    //     }
-
-    //     None
-    // }
+        None
+    }
 
     /// Actually run the TM.
     #[inline(never)]
