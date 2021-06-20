@@ -1,9 +1,6 @@
 //! Defines types to describe a TM.
 
-use std::{
-    fmt,
-    marker::PhantomData,
-};
+use std::fmt;
 
 use crate::tape::CellValue;
 
@@ -17,8 +14,7 @@ pub struct Tm<const N: usize> {
     /// significant bits. I.e. the N * 10 least significant bits are used. All
     /// remaining (upper) bits are unused but have to be 0. This also trivially
     /// means that only TMs up to N=6 are representable.
-    encoded: u64,
-    _dummy: PhantomData<[(); N]>,
+    pub encoded: u64,
 }
 
 impl<const N: usize> Tm<N> {
@@ -41,12 +37,7 @@ impl<const N: usize> Tm<N> {
     pub fn new_unchecked(encoded: u64) -> Self {
         Self {
             encoded,
-            _dummy: PhantomData,
         }
-    }
-
-    pub fn encoded(&self) -> u64 {
-        self.encoded
     }
 
     pub fn state(self, index: u8) -> State<N> {

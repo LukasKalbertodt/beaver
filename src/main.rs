@@ -12,7 +12,7 @@ use structopt::StructOpt;
 // mod analyze;
 mod cli;
 mod cmd;
-// mod gen;
+mod gen;
 // mod summary;
 mod tape;
 mod tm;
@@ -22,10 +22,14 @@ mod tm;
 fn main() {
     let args = cli::Args::from_args();
 
-    match args.cmd {
-        cli::Command::Single { id } => {
-            cmd::single::run(id, &args);
-        }
+    let res = match args.cmd {
+        cli::Command::Single { id } => cmd::single::run(id, &args),
+        cli::Command::Full => cmd::full::run(&args),
+    };
+
+    if let Err(e) = res {
+        bunt::eprintln!("{$red}An error occured!{/$}");
+        eprintln!("{:?}", e);
     }
 
     // match args.n {

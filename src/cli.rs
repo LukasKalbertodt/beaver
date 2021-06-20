@@ -52,4 +52,7 @@ pub enum Command {
         /// The ID of the turing machine.
         id: u64,
     },
+
+    /// Analyzes the full class of TMs with N states.
+    Full,
 }
