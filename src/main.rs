@@ -4,148 +4,153 @@
 
 #![allow(incomplete_features)]
 
-use std::{cmp::min, ops::Range, sync::{Arc, Mutex}, thread, time::{Duration, Instant}};
+// use std::{cmp::min, ops::Range, sync::{Arc, Mutex}, thread, time::{Duration, Instant}};
 
-use pbr::ProgressBar;
+// use pbr::ProgressBar;
 use structopt::StructOpt;
 
-use crate::{analyze::Analyzer, cli::Args, gen::for_all_tms, summary::Summary, tape::CellValue};
-
-mod analyze;
+// mod analyze;
 mod cli;
-mod gen;
-mod summary;
+mod cmd;
+// mod gen;
+// mod summary;
 mod tape;
 mod tm;
 
 
 
 fn main() {
-    let args = Args::from_args();
+    let args = cli::Args::from_args();
 
-    match args.n {
-        0 => {
-            eprintln!("`-n` must be above 0! Zero state TMs do not make sense.");
-            return;
-        }
-        1 => run::<1>(&args),
-        2 => run::<2>(&args),
-        3 => run::<3>(&args),
-        4 => run::<4>(&args),
-        5 => run::<5>(&args),
-        _ => {
-            eprintln!(
-                "Currently, only `-n` up to 5 are allowed. This whole problem \
-                    is about quickly growing functions, you know..."
-            );
-            return;
+    match args.cmd {
+        cli::Command::Single { id } => {
+            cmd::single::run(id, &args);
         }
     }
+
+    // match args.n {
+    //     0 => {
+    //         eprintln!("`-n` must be above 0! Zero state TMs do not make sense.");
+    //         return;
+    //     }
+    //     1 => run::<1>(&args),
+    //     2 => run::<2>(&args),
+    //     3 => run::<3>(&args),
+    //     4 => run::<4>(&args),
+    //     5 => run::<5>(&args),
+    //     _ => {
+    //         eprintln!(
+    //             "Currently, only `-n` up to 5 are allowed. This whole problem \
+    //                 is about quickly growing functions, you know..."
+    //         );
+    //         return;
+    //     }
+    // }
 }
 
 
-/// Runs the experiment for a given `N`.
-#[inline(never)]
-fn run<const N: usize>(args: &Args)
-where
-    [bool; N]: Default,
-    [(); 2 * N]:,
-{
-    let num_tms = gen::num_machines(N as u64);
-    println!("");
-    bunt::println!("{$blue+bold}▸ Analyzing all {} TMs with {} states...{/$}", num_tms, N);
-    println!("");
+// /// Runs the experiment for a given `N`.
+// #[inline(never)]
+// fn run<const N: usize>(args: &Args)
+// where
+//     [bool; N]: Default,
+//     [(); 2 * N]:,
+// {
+//     let num_tms = gen::num_machines(N as u64);
+//     println!("");
+//     bunt::println!("{$blue+bold}▸ Analyzing all {} TMs with {} states...{/$}", num_tms, N);
+//     println!("");
 
 
-    // ----- Run ---------------------------------------------------
-    let mut pb = ProgressBar::new(num_tms as u64);
-    pb.set_max_refresh_rate(Some(Duration::from_millis(10)));
-    let pb = Arc::new(Mutex::new(pb));
+//     // ----- Run ---------------------------------------------------
+//     let mut pb = ProgressBar::new(num_tms as u64);
+//     pb.set_max_refresh_rate(Some(Duration::from_millis(10)));
+//     let pb = Arc::new(Mutex::new(pb));
 
-    let before = Instant::now();
+//     let before = Instant::now();
 
-    // Create a channel to pass pass the work to the workers. We bound it to
-    // three to have always have some work ready, but to not use too much
-    // memory.
-    let (s, r) = crossbeam_channel::bounded::<Range<u64>>(3);
+//     // Create a channel to pass pass the work to the workers. We bound it to
+//     // three to have always have some work ready, but to not use too much
+//     // memory.
+//     let (s, r) = crossbeam_channel::bounded::<Range<u64>>(3);
 
-    // Create the worker threads
-    let num_threads = args.num_threads.unwrap_or_else(|| num_cpus::get() as u32);
-    let join_handles = (0..num_threads).map(|_| {
-        let new_jobs = r.clone();
-        let pb = pb.clone();
-        let args = args.clone();
-        thread::spawn(move || {
-            let mut analyzer = Analyzer::new(args.clone());
-            let mut summary = Summary::new();
+//     // Create the worker threads
+//     let num_threads = args.num_threads.unwrap_or_else(|| num_cpus::get() as u32);
+//     let join_handles = (0..num_threads).map(|_| {
+//         let new_jobs = r.clone();
+//         let pb = pb.clone();
+//         let args = args.clone();
+//         thread::spawn(move || {
+//             let mut analyzer = Analyzer::new(args.clone());
+//             let mut summary = Summary::new();
 
-            for range in new_jobs.iter() {
-                let job_len = range.end - range.start;
+//             for range in new_jobs.iter() {
+//                 let job_len = range.end - range.start;
 
-                // Analyze each TM in this batch
-                let mut count = 0;
-                for_all_tms::<_, N>(range.clone(), |tm| {
-                    count += 1;
-                    let outcome = analyzer.analyze(tm);
-                    if args.print_aborted && outcome.was_aborted() {
-                        println!("{:?} => {:#?}", outcome, tm);
-                    }
-                    summary.handle_outcome(outcome);
-                });
+//                 // Analyze each TM in this batch
+//                 let mut count = 0;
+//                 for_all_tms::<_, N>(range.clone(), |tm| {
+//                     count += 1;
+//                     let outcome = analyzer.analyze(tm);
+//                     if args.print_aborted && outcome.was_aborted() {
+//                         println!("{:?} => {:#?}", outcome, tm);
+//                     }
+//                     summary.handle_outcome(outcome);
+//                 });
 
-                // Advance progress bar
-                if !args.no_pb {
-                    pb.lock().expect("poisened lock").add(job_len);
-                }
-            }
+//                 // Advance progress bar
+//                 if !args.no_pb {
+//                     pb.lock().expect("poisened lock").add(job_len);
+//                 }
+//             }
 
-            summary
-        })
-    }).collect::<Vec<_>>();
+//             summary
+//         })
+//     }).collect::<Vec<_>>();
 
-    let chunk_size = match N {
-        1 => 1,
-        2 => 1000,
-        3 => 10_000,
-        _ => 100_000,
-    };
+//     let chunk_size = match N {
+//         1 => 1,
+//         2 => 1000,
+//         3 => 10_000,
+//         _ => 100_000,
+//     };
 
-    for start in (0..num_tms).step_by(chunk_size) {
-        let range = start..min(start + chunk_size as u64, num_tms);
-        s.send(range).expect("channel unexpectedly disconnected");
-    }
+//     for start in (0..num_tms).step_by(chunk_size) {
+//         let range = start..min(start + chunk_size as u64, num_tms);
+//         s.send(range).expect("channel unexpectedly disconnected");
+//     }
 
-    // Join all threads
-    drop(s);
-    let mut summary = Summary::new();
-    for handle in join_handles {
-        let thread_summary = handle.join().expect("panic in worker thread");
-        summary.add(thread_summary);
-    }
+//     // Join all threads
+//     drop(s);
+//     let mut summary = Summary::new();
+//     for handle in join_handles {
+//         let thread_summary = handle.join().expect("panic in worker thread");
+//         summary.add(thread_summary);
+//     }
 
-    if !args.no_pb {
-        pb.lock().unwrap().finish();
-        println!();
-    }
+//     if !args.no_pb {
+//         pb.lock().unwrap().finish();
+//         println!();
+//     }
 
-    println!();
-    let elapsed = before.elapsed();
+//     println!();
+//     let elapsed = before.elapsed();
 
-    // The `as u64` could technically overflow, but 2^64ns = 584 years, so...
-    let core_nanos_per_tm = (elapsed.as_nanos() * num_threads as u128) / num_tms as u128;
-    let core_time_per_tm = Duration::from_nanos(core_nanos_per_tm as u64);
-    println!(
-        "  (That took {:.2?}, {:?} per TM on {} threads -> {:?} core time per TM)",
-        elapsed,
-        core_time_per_tm / num_threads,
-        num_threads,
-        core_time_per_tm,
-    );
+//     // The `as u64` could technically overflow, but 2^64ns = 584 years, so...
+//     let core_nanos_per_tm = (elapsed.as_nanos() * num_threads as u128) / num_tms as u128;
+//     let core_time_per_tm = Duration::from_nanos(core_nanos_per_tm as u64);
+//     println!(
+//         "  (That took {:.2?}, {:?} per TM on {} threads -> {:?} core time per TM)",
+//         elapsed,
+//         core_time_per_tm / num_threads,
+//         num_threads,
+//         core_time_per_tm,
+//     );
 
-    // ----- Print results ---------------------------------------------------
-    println!();
-    summary.print_report(args);
-}
+//     // ----- Print results ---------------------------------------------------
+//     println!();
+//     summary.print_report(args);
+// }
 
 
 /// The outcome of simulating a TM.

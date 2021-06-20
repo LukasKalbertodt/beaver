@@ -1,86 +1,112 @@
 //! Defines types to describe a TM.
 
 use std::{
-    convert::TryInto,
     fmt,
     marker::PhantomData,
 };
-use core::arch::x86_64::*;
-use bytemuck::{Pod, Zeroable};
 
-use crate::CellValue;
+use crate::tape::CellValue;
 
 
-/// A N-state turing machine operating on a binary tape.
-#[derive(Clone, Copy)]
+/// An N-state turing machine operating on a binary tape.
+///
+/// This type can only represent TMs up to N=6 states.
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Tm<const N: usize> {
-    encoded: __m128i,
+    /// Every state is encoded using 10 bits, starting with the least
+    /// significant bits. I.e. the N * 10 least significant bits are used. All
+    /// remaining (upper) bits are unused but have to be 0. This also trivially
+    /// means that only TMs up to N=6 are representable.
+    encoded: u64,
     _dummy: PhantomData<[(); N]>,
 }
 
 impl<const N: usize> Tm<N> {
-    pub fn new(encoded: __m128i) -> Self {
+    pub fn from_id(id: u64) -> Option<Self> {
+        // Check for too many states
+        if (id >> (N * 10)) != 0 {
+            return None;
+        }
+
+        // Make sure all actions transition to an actual state.
+        for action in (0..2 * N).map(|i| (id >> (5 * i)) & 0b11111) {
+            if (action >> 2) > N as u64 {
+                return None;
+            }
+        }
+
+        Some(Self::new_unchecked(id))
+    }
+
+    pub fn new_unchecked(encoded: u64) -> Self {
         Self {
             encoded,
             _dummy: PhantomData,
         }
     }
 
-    pub fn encoded(&self) -> &__m128i {
-        &self.encoded
+    pub fn encoded(&self) -> u64 {
+        self.encoded
     }
 
-    /// Returns the first transition that will be executed (`states[0].on_0`).
-    pub fn start_action(&self) -> Action {
-        Action {
-            encoded: unsafe { _mm_cvtsi128_si32(self.encoded) } as u8,
-        }
-    }
-
-    pub fn states(&self) -> [State; N] {
-        let arr: &[State; 8] = bytemuck::cast_ref(&self.encoded);
-        arr[..N].try_into().unwrap()
-    }
-}
-
-impl<const N: usize> PartialEq for Tm<N> {
-    fn eq(&self, other: &Self) -> bool {
-        unsafe {
-            _mm_movemask_epi8(_mm_cmpeq_epi8(self.encoded, other.encoded)) == 0xFFFF
+    pub fn state(self, index: u8) -> State<N> {
+        debug_assert!(index < N as u8, "index out of bounds!");
+        State {
+            encoded: (self.encoded >> (index * 10)) as u16
         }
     }
 }
 
 impl<const N: usize> fmt::Debug for Tm<N> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        struct Key(char);
+        impl fmt::Debug for Key {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "{}", self.0)
+            }
+        }
+
+        write!(f, "Tm ")?;
         f.debug_map()
-            .entries(self.states().iter().enumerate())
+            .entries((0..N as u8).map(|i| (Key(state_name::<N>(i)), self.state(i))))
             .finish()
     }
 }
 
 
 /// A state of a TM.
-#[derive(Clone, Copy, Pod, Zeroable)]
-#[repr(C)]
-pub struct State {
-    pub on_0: Action,
-    pub on_1: Action,
+#[derive(Clone, Copy)]
+pub struct State<const N: usize> {
+    /// Only the lower 10 bits are used. The lowest 5 bits are encoding the
+    /// action if a 0 is read from the tape, the next 5 for when a 1 is read.
+    encoded: u16,
 }
 
-impl State {
+impl<const N: usize> State<N> {
+    pub fn on_0(self) -> Action<N> {
+        Action {
+            encoded: self.encoded as u8 & 0b11111,
+        }
+    }
+
+    pub fn on_1(self) -> Action<N> {
+        Action {
+            encoded: (self.encoded >> 5) as u8,
+        }
+    }
+
     /// Returns the action for the given cell value.
-    pub fn action_for(&self, value: CellValue) -> Action {
+    pub fn action_for(self, value: CellValue) -> Action<N> {
         match value.0 {
-            false => self.on_0,
-            true => self.on_1,
+            false => self.on_0(),
+            true => self.on_1(),
         }
     }
 }
 
-impl fmt::Debug for State {
+impl<const N: usize> fmt::Debug for State<N> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "State {{ 0 → {:?}, 1 → {:?} }}", self.on_0, self.on_1)
+        write!(f, "{{ 0 → {:?}, 1 → {:?} }}", self.on_0(), self.on_1())
     }
 }
 
@@ -107,27 +133,23 @@ impl NextState {
     }
 }
 
-/// Special constant.
-const HALT_STATE: u8 = 63;
-
 /// Everything that happens in one step of simulation.
-#[derive(Clone, Copy, Pod, Zeroable)]
-#[repr(transparent)]
-pub struct Action {
+#[derive(Clone, Copy)]
+pub struct Action<const N: usize> {
     /// This encodes the full action like follows:
-    /// - Bit 0: what is written to the cell in this transition
+    /// - Bit 0: the inverted value that is written to the tape, i.e. if this
+    ///   bit is 0, 1 is written to the tape, and vica versa.
     /// - Bit 1: the head movement, where 0 is left and 1 is right
-    /// - Bit 2-7: the next state. With these 6 bits we can encode 2^6 = 64
-    ///   states which is more than enough. The busy beaver problem is already
-    ///   very hard for N=6.
+    /// - Bit 2-5: a four bit number <= N representing the next state. If this
+    ///   is N, this action will transition to the halt state.
     encoded: u8,
 }
 
-impl Action {
+impl<const N: usize> Action<N> {
     /// The next state value of this transition.
     pub fn next_state(&self) -> NextState {
         let v = self.encoded >> 2;
-        if v == HALT_STATE {
+        if v == N as u8 {
             NextState::HaltState
         } else {
             NextState::State(v)
@@ -136,7 +158,7 @@ impl Action {
 
     /// The value that is written to the tape.
     pub fn write_value(&self) -> CellValue {
-        CellValue((self.encoded & 1) == 1)
+        CellValue((self.encoded & 1) == 0)
     }
 
     /// How the reading/writing head moves.
@@ -150,24 +172,19 @@ impl Action {
 
     /// Returns `true` if the next state is the halt state.
     pub fn will_halt(&self) -> bool {
-        self.next_state().is_halt_state()
+        (self.encoded >> 2) == N as u8
     }
 }
 
-impl fmt::Debug for Action {
+impl<const N: usize> fmt::Debug for Action<N> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let letter = if self.movement() == Move::Left { "l" } else { "r" };
+        let direction = if self.movement() == Move::Left { "l" } else { "r" };
         let write = if self.write_value().0 { "1" } else { "0" };
+        let state = state_name::<N>(self.encoded >> 2);
 
-        if self.will_halt() {
-            write!(f, "{}_H", write)
-        } else {
-            let state_id = self.next_state().as_normal_state().unwrap();
-            write!(f, "{}{}{}", write, letter, state_id)
-        }
+        write!(f, "{}{}{}", state, direction, write)
     }
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Move {
@@ -175,3 +192,10 @@ pub enum Move {
     Right,
 }
 
+fn state_name<const N: usize>(id: u8) -> char {
+    if id == N as u8 {
+        'H'
+    } else {
+        ['A', 'B', 'C', 'D', 'E', 'F'][id as usize]
+    }
+}

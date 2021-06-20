@@ -6,6 +6,7 @@ edition = "2018"
 
 
 [dependencies]
+anyhow = "1"
 bunt = "0.2.0"
 bytemuck = { version = "1.6", features = ["derive"] }
 crossbeam-channel = "0.5"
