@@ -40,10 +40,14 @@ impl<const N: usize> Tm<N> {
         }
     }
 
+    pub fn start_action(self) -> Action<N> {
+        self.state(0).on_0()
+    }
+
     pub fn state(self, index: u8) -> State<N> {
         debug_assert!(index < N as u8, "index out of bounds!");
         State {
-            encoded: (self.encoded >> (index * 10)) as u16
+            encoded: (self.encoded >> (index * 10)) as u16 & 0b11111_11111
         }
     }
 }
@@ -70,6 +74,7 @@ impl<const N: usize> fmt::Debug for Tm<N> {
 pub struct State<const N: usize> {
     /// Only the lower 10 bits are used. The lowest 5 bits are encoding the
     /// action if a 0 is read from the tape, the next 5 for when a 1 is read.
+    /// The upper 6 bits have to be 0!
     encoded: u16,
 }
 
@@ -133,6 +138,7 @@ pub struct Action<const N: usize> {
     /// - Bit 1: the head movement, where 0 is left and 1 is right
     /// - Bit 2-5: a four bit number <= N representing the next state. If this
     ///   is N, this action will transition to the halt state.
+    /// - Bit 6 and 7 have to be 0!
     encoded: u8,
 }
 

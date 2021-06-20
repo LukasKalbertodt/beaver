@@ -8,6 +8,10 @@ use super::TmGenerator;
 pub struct All<const N: usize>;
 
 impl<const N: usize> TmGenerator<N> for All<N> {
+    fn description() -> &'static str {
+        "All TMs"
+    }
+
     fn num_tms() -> u64 {
         // There are N states and 2 actions per state.
         Self::num_possible_actions().pow(2 * N as u32)

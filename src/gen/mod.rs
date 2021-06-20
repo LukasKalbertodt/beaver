@@ -14,6 +14,8 @@ pub use self::{
 
 /// Something that can generate N state Turing machines.
 pub trait TmGenerator<const N: usize> {
+    fn description() -> &'static str;
+
     /// The number of different Turing machines this generator can generate in
     /// total.
     fn num_tms() -> u64;

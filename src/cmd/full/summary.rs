@@ -3,9 +3,7 @@ use std::{
     collections::HashMap,
 };
 
-use crate::{
-    Args, Outcome,
-};
+use crate::Outcome;
 
 
 
@@ -130,7 +128,7 @@ impl Summary {
         format!("{:.2}%", percent)
     }
 
-    pub fn print_report(&self, args: &Args) {
+    pub fn print_report(&self, args: &super::Args) {
         let halted_non_high_score = (self.num_halted + self.num_immediate_halt) - self.num_winners;
         let num_non_terminated = self.num_aborted_after_max_steps
             + self.num_simple_elope
@@ -196,7 +194,7 @@ impl Summary {
             "  - {[red+bold]} ({[red+bold]}) were aborted after the maximum number of steps ({})",
             self.num_aborted_after_max_steps,
             self.percent(self.num_aborted_after_max_steps),
-            args.max_steps,
+            args.shared.max_steps,
         );
 
         if !args.hide_histogram {
@@ -208,7 +206,7 @@ impl Summary {
         println!();
     }
 
-    fn print_histogram(&self, args: &Args) {
+    fn print_histogram(&self, args: &super::Args) {
         let histogram_height = args.histogram_height as usize;
         let histogram_cutoff = args.histogram_cutoff;
 
