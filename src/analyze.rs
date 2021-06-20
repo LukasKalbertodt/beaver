@@ -102,53 +102,60 @@ where
         //     SSSDW    (SSS = 3 bit next state, D = direction, w = write)
         //
         // What we want to know whether `SSS == N` for any of those actions. To
-        // do that, we first shift the whole thing two to the right and mask
-        // away the direction and write bits (see `state_mask` and
-        // `shifted_states`). Now our bitstring looks like this:
+        // do that, we first mask away the direction and write bits
+        // (see `state_mask` and `shifted_states`). Now our bitstring looks
+        // like this:
         //
-        //     ...00SSS 00SSS 00SSS
+        //     ...00 SSS00 SSS00 SSS00
         //
         // The idea is to add just the right number to each of the 3 bit numbers
         // and check overflow. The two 0 bits allow us to handle all
         // independently from one another by just adding one big 64 bit number.
-        // In particular, we add a number X such that `N + X = 0b1000`, i.e.
-        // the addition carries into the 4th bit. For sections where `SSS < N`,
+        // Also note that in the front, we have 4 unused (and now 0) bits.
+        //
+        // In particular, we add a number X such that `N + X = 0b1000`, i.e. the
+        // addition carries into the 4th bit. For sections where `SSS < N`,
         // `SSS + X` will result in something smaller than `0b1000`, i.e. a 3
         // bit number.
         //
         // So imagine N is 4 (0b100) and we have this input:
         //
-        //    ...00011 00100 00001
+        //    ...00 01100 10000 00100
         //
         // The three example actions in this input transition to state 0b11, the
         // halt state and state 0b1 (in this order).
         //
         // Our adder is `0b1000 - N = 0b100´, repeated like this:
         //
-        //    ...00100 00100 00100
+        //    ...10000 10000 10000
         //
         // Adding those two together gives:
         //
-        //    ...00111 01000 00101
+        //    ...00 11101 00000 10100
         //
         // Finally, we just need to mask away all non-overflow bits with this
         // mask:
         //
-        //    ...11000 11000 11000      (!state_mask)
+        //    ...11 00011 00011 00011      (!state_mask)
         //
         // Resulting in:
         //
-        //    ...00000 01000 00000
+        //    ...00 00001 00000 00000
         //
         // And now we simply check whether that result is 0. If it isn't, there
         // has to be a halt state transition somewhere, otherwise the addition
         // would not have overflowed into bit 4.
         //
         // Credits to Julian Kniephoff for coming up with this idea.
-        let state_mask = make_repeating_mask::<N>(0b00111);
-        let adder = make_repeating_mask::<N>(0b1000 - N as u8);
+        //
+        // Oh and we could hardcode `::<6>` here to create the masks since the
+        // upper bits are just unused and therefore 0. However, for `add` and
+        // `and` instructions, there is no form with a 64bit immediate, so by
+        // using `::<N>` here, we get a slightly faster version for N <= 3.
+        let state_mask = make_repeating_mask::<N>(0b11100);
+        let adder = make_repeating_mask::<N>((0b1000 - N as u8) << 2);
 
-        let shifted_states = (tm.encoded >> 2) & state_mask;
+        let shifted_states = tm.encoded & state_mask;
         let added = shifted_states + adder;
         let overflow = added & !state_mask;
 
