@@ -1,7 +1,5 @@
-use std::{
-    cmp::min,
-    collections::HashMap,
-};
+use std::cmp::min;
+use ahash::AHashMap;
 
 use crate::outcome::OutcomeSink;
 
@@ -19,7 +17,7 @@ pub struct Summary {
     fewest_winner_steps: u32,
 
     /// Records how many TMs finished after how many steps.
-    step_histogram: HashMap<u32, u64>,
+    step_histogram: AHashMap<u32, u64>,
 
     /// `Outcome::Halted`
     num_halted: u64,
@@ -86,7 +84,7 @@ impl Summary {
             high_score: 0,
             num_winners: 0,
             fewest_winner_steps: 0,
-            step_histogram: HashMap::new(),
+            step_histogram: AHashMap::new(),
             num_halted: 0,
             num_aborted_after_max_steps: 0,
             num_immediate_halt: 0,
