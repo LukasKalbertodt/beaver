@@ -116,19 +116,6 @@ pub enum NextState {
     State(u8),
 }
 
-impl NextState {
-    pub fn is_halt_state(&self) -> bool {
-        *self == NextState::HaltState
-    }
-
-    pub fn as_normal_state(&self) -> Option<u8> {
-        match self {
-            NextState::HaltState => None,
-            NextState::State(v) => Some(*v)
-        }
-    }
-}
-
 /// Everything that happens in one step of simulation.
 #[derive(Clone, Copy)]
 pub struct Action<const N: usize> {
