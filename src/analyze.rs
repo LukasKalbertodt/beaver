@@ -49,7 +49,7 @@ where
         // statically to categorize certain TMs early.
         try_check!(Self::check_immediate_halt(tm));
         try_check!(Self::check_simple_elope(tm));
-        // try_check!(Self::check_halt_exists(tm));
+        try_check!(Self::check_halt_exists(tm));
         // try_check!(self.check_halt_reachable(tm));
 
         self.run_tm(tm)
@@ -78,43 +78,86 @@ where
         None
     }
 
-    // /// Static analysis (fast): checks if the TM has a transition to the halt
-    // /// state at all.
-    // pub fn check_halt_exists(tm: Tm<N>) -> Option<Outcome> {
-    //     use core::arch::x86_64::{_mm_movemask_epi8, _mm_set1_epi8, _mm_cmpeq_epi8, _mm_max_epu8};
+    /// Static analysis (fast): checks if the TM has a transition to the halt
+    /// state at all.
+    pub fn check_halt_exists(tm: Tm<N>) -> Option<Outcome> {
+        /// This is a helper to create a bitmask by repeating a 5 bit pattern
+        /// N * 2 times.
+        const fn make_repeating_mask<const N: usize>(pattern: u8) -> u64 {
+            let mut out = pattern as u64;
+            let mut i = 2 * N - 1;
+            while i > 0 {
+                out <<= 5;
+                out |= pattern as u64;
+                i -= 1;
+            }
 
-    //     let v = *tm.encoded();
-    //     unsafe {
-    //         let mask = _mm_set1_epi8(0b1111_1100u8 as i8);
+            out
+        }
 
-    //         // This first creates the maximum of v and mask, byte by byte. And
-    //         // then compares to `v`. In the end, a byte in `compared` is `0xFF`
-    //         // if the corresponding byte in v is equal to the max of v and
-    //         // mask. This means that that byte in v was at least 1111_1100
-    //         // large, meaning it contained the halt state. Otherwise the result
-    //         // byte is 0.
-    //         let compared = _mm_cmpeq_epi8(_mm_max_epu8(v, mask), v);
+        // This is a funky trick to quickly check if any action transitions to
+        // the halt state. Without iterating over all actions! Remember, the
+        // layout of one 5 bit encoded action is:
+        //
+        //     SSSDW    (SSS = 3 bit next state, D = direction, w = write)
+        //
+        // What we want to know whether `SSS == N` for any of those actions. To
+        // do that, we first shift the whole thing two to the right and mask
+        // away the direction and write bits (see `state_mask` and
+        // `shifted_states`). Now our bitstring looks like this:
+        //
+        //     ...00SSS 00SSS 00SSS
+        //
+        // The idea is to add just the right number to each of the 3 bit numbers
+        // and check overflow. The two 0 bits allow us to handle all
+        // independently from one another by just adding one big 64 bit number.
+        // In particular, we add a number X such that `N + X = 0b1000`, i.e.
+        // the addition carries into the 4th bit. For sections where `SSS < N`,
+        // `SSS + X` will result in something smaller than `0b1000`, i.e. a 3
+        // bit number.
+        //
+        // So imagine N is 4 (0b100) and we have this input:
+        //
+        //    ...00011 00100 00001
+        //
+        // The three example actions in this input transition to state 0b11, the
+        // halt state and state 0b1 (in this order).
+        //
+        // Our adder is `0b1000 - N = 0b100´, repeated like this:
+        //
+        //    ...00100 00100 00100
+        //
+        // Adding those two together gives:
+        //
+        //    ...00111 01000 00101
+        //
+        // Finally, we just need to mask away all non-overflow bits with this
+        // mask:
+        //
+        //    ...11000 11000 11000      (!state_mask)
+        //
+        // Resulting in:
+        //
+        //    ...00000 01000 00000
+        //
+        // And now we simply check whether that result is 0. If it isn't, there
+        // has to be a halt state transition somewhere, otherwise the addition
+        // would not have overflowed into bit 4.
+        //
+        // Credits to Julian Kniephoff for coming up with this idea.
+        let state_mask = make_repeating_mask::<N>(0b00111);
+        let adder = make_repeating_mask::<N>(0b1000 - N as u8);
 
-    //         // This compares v and mask byte by byte. If `v[i] < mask[i]`, the
-    //         // result at that byte is `0xFF`, 0 otherwise. For unused bytes
-    //         // (where no valid data is stored), `as_m128` returns zeroes. So
-    //         // for those, the comparison is always true, always resulting in
-    //         // `0xFF`.
-    //         //
-    //         // Note: the operands are in a strange order. They are swapped
-    //         // basically. This is unfortunately intentional.
-    //         // let compared = _mm_cmplt_epi8(mask, v);
+        let shifted_states = (tm.encoded >> 2) & state_mask;
+        let added = shifted_states + adder;
+        let overflow = added & !state_mask;
 
-    //         // With this, we extract the most significant bit of each byte. If
-    //         // all of those are 0, that means there was no transition to the
-    //         // halt state.
-    //         if _mm_movemask_epi8(compared) == 0 {
-    //             return Some(Outcome::NoHaltState);
-    //         }
-    //     }
+        if overflow == 0 {
+            return Some(Outcome::NoHaltState);
+        }
 
-    //     None
-    // }
+        None
+    }
 
     // /// Static analysis (slower): check if the halt state can be reached via
     // /// the state graph.
