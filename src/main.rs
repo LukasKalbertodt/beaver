@@ -1,7 +1,4 @@
 #![feature(const_generics)]
-#![feature(const_evaluatable_checked)]
-#![feature(array_map)]
-
 #![allow(incomplete_features)]
 
 use structopt::StructOpt;
