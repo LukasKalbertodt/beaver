@@ -12,6 +12,11 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+        profile: minimal
     - name: Build
       run: cargo build
     - name: Run tests
