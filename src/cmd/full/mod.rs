@@ -22,6 +22,9 @@ pub struct Args {
     #[structopt(flatten)]
     shared: SharedArgs,
 
+    /// Set TM generator. 'all' blindly generates all possible TMs; 'no-symmetries'
+    /// eliminates symmetric TMs that will result in the same outcome; 'optimized'
+    /// also eliminates TMs that have on chance of winning busy beaver.
     #[structopt(short, long, default_value = "optimized")]
     generator: Generator,
 
