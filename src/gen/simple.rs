@@ -48,7 +48,8 @@ impl<const OPTS: Opt, const N: usize> TmGenerator<N> for Gen<OPTS, N> {
         match OPTS {
             Opt::None => "All TMs",
             Opt::SkipSymmetries => "All TMs but symmetric pairs deduplicated",
-            Opt::AlsoSkipHaltZero => "All TMs without symmetry and without TMs with H_0 transitions",
+            Opt::AlsoSkipHaltZero
+                => "All TMs without symmetry and without TMs with H_0 transitions",
         }
     }
 

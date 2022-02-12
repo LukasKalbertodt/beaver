@@ -1,5 +1,12 @@
 use anyhow::Result;
-use std::{cmp::min, ops::Range, str::FromStr, sync::{Arc, Mutex}, thread, time::{Duration, Instant}};
+use std::{
+    cmp::min,
+    ops::Range,
+    str::FromStr,
+    sync::{Arc, Mutex},
+    thread,
+    time::{Duration, Instant},
+};
 use structopt::StructOpt;
 use pbr::ProgressBar;
 
