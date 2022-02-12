@@ -3,12 +3,12 @@ Busy Beaver
 
 An application that analyses/simulates all possible N-state Turing machines with tape alphabet = {0, 1}, where `N` is given as command line argument.
 All TMs are generated, then categorized based on static analysis or their runtime behavior.
-Finally a summary of all results is printed.
+Finally, a summary of all results is printed.
 This is related to the [Busy Beaver game](https://en.wikipedia.org/wiki/Busy_Beaver_game).
 
 **Features**:
 - Nice output, including histogram
-- Fairly fast (on a Ryzen 3600, N=4 with its 11 billion TMs runs in ≈1m55s)
+- Fairly fast (on a Ryzen 3600, N=4 with its 11 billion TMs, 5.5 billion deduplicated, runs in roughly half a minute)
 - Static analysis: state graph reachability check
 - Can detect and categorize ≈97% of non-halting TMs (for N=4)
 
